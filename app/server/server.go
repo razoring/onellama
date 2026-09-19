@@ -52,6 +52,11 @@ func New(s *store.Store, devMode bool) *Server {
 }
 
 func resolvePath(name string) string {
+	ext := ""
+	if runtime.GOOS == "windows" && !strings.HasSuffix(name, ".exe") {
+		ext = ".exe"
+	}
+
 	// look in the app bundle first
 	if exe, _ := os.Executable(); exe != "" {
 		var dir string
@@ -60,15 +65,15 @@ func resolvePath(name string) string {
 		} else {
 			dir = filepath.Join(filepath.Dir(exe), "..", "Resources")
 		}
-		if _, err := os.Stat(filepath.Join(dir, name)); err == nil {
-			return filepath.Join(dir, name)
+		if _, err := os.Stat(filepath.Join(dir, name+ext)); err == nil {
+			return filepath.Join(dir, name+ext)
 		}
 	}
 
 	// check the development dist path
 	for _, path := range []string{
-		filepath.Join("dist", runtime.GOOS, name),
-		filepath.Join("dist", runtime.GOOS+"-"+runtime.GOARCH, name),
+		filepath.Join("dist", runtime.GOOS, name+ext),
+		filepath.Join("dist", runtime.GOOS+"-"+runtime.GOARCH, name+ext),
 	} {
 		if _, err := os.Stat(path); err == nil {
 			return path
