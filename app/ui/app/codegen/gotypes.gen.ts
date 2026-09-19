@@ -613,3 +613,46 @@ export class BrowserStateData {
         this.url_to_page = source["url_to_page"];
     }
 }
+
+export class MCPServerItem {
+    name: string;
+    type: string;
+    command?: string;
+    args?: string[];
+    env?: Record<string, string>;
+    url?: string;
+    disabled?: boolean;
+    status: string;
+    error?: string;
+    tools?: string[];
+
+    constructor(source: any = {}) {
+        if ('string' === typeof source) source = JSON.parse(source);
+        this.name = source["name"];
+        this.type = source["type"];
+        this.command = source["command"];
+        this.args = source["args"];
+        this.env = source["env"];
+        this.url = source["url"];
+        this.disabled = source["disabled"];
+        this.status = source["status"];
+        this.error = source["error"];
+        this.tools = source["tools"];
+    }
+}
+
+export class MCPConfigResponse {
+    raw: string;
+    configPath: string;
+    servers: MCPServerItem[];
+    parseError?: string;
+
+    constructor(source: any = {}) {
+        if ('string' === typeof source) source = JSON.parse(source);
+        this.raw = source["raw"];
+        this.configPath = source["configPath"];
+        this.servers = (source["servers"] || []).map((s: any) => new MCPServerItem(s));
+        this.parseError = source["parseError"];
+    }
+}
+

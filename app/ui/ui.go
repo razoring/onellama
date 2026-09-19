@@ -297,6 +297,8 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /api/v1/cloud", handle(s.cloudSetting))
 	mux.Handle("GET /api/v1/models/cloud", handle(s.getCloudModels))
 	mux.Handle("GET /api/v1/integrations", handle(s.getIntegrationStatuses))
+	mux.Handle("GET /api/v1/mcp", handle(s.getMCP))
+	mux.Handle("POST /api/v1/mcp", handle(s.saveMCP))
 
 	// Ollama proxy endpoints
 	ollamaProxy := s.ollamaProxy()
@@ -1943,4 +1945,33 @@ func (s *Server) buildChatRequest(chat *store.Chat, model string, think any, ava
 	}
 
 	return req, nil
+}
+
+//getMCP handles HTTP GET requests to read MCP configuration
+func (s *Server) getMCP(w http.ResponseWriter, _ *http.Request) error {
+	cfg, err := loadMCPConfig()
+	if err != nil {
+		return fmt.Errorf("failed to load mcp config: %w", err)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	return json.NewEncoder(w).Encode(cfg)
+}
+
+//saveMCP handles HTTP POST requests to update MCP configuration
+func (s *Server) saveMCP(w http.ResponseWriter, r *http.Request) error {
+	var body struct {
+		Raw string `json:"raw"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		return fmt.Errorf("invalid request body: %w", err)
+	}
+
+	cfg, err := saveMCPConfig(body.Raw)
+	if err != nil {
+		return fmt.Errorf("failed to save mcp config: %w", err)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	return json.NewEncoder(w).Encode(cfg)
 }

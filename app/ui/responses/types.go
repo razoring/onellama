@@ -153,3 +153,24 @@ type Page struct {
 	Links     map[int]string `json:"links,omitempty" ts_type:"Record<number, string>"`
 	FetchedAt time.Time      `json:"fetched_at"`
 }
+
+type MCPServerItem struct {
+	Name     string            `json:"name"`
+	Type     string            `json:"type"`
+	Command  string            `json:"command,omitempty"`
+	Args     []string          `json:"args,omitempty"`
+	Env      map[string]string `json:"env,omitempty"`
+	URL      string            `json:"url,omitempty"`
+	Disabled bool              `json:"disabled,omitempty"`
+	Status   string            `json:"status"`
+	Error    string            `json:"error,omitempty"`
+	Tools    []string          `json:"tools,omitempty"`
+}
+
+type MCPConfigResponse struct {
+	Raw        string          `json:"raw"`
+	ConfigPath string          `json:"configPath"`
+	Servers    []MCPServerItem `json:"servers"`
+	ParseError string          `json:"parseError,omitempty"`
+}
+

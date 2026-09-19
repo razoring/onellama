@@ -10,6 +10,7 @@ import {
   ChatRequest,
   Settings,
   User,
+  MCPConfigResponse,
 } from "@/gotypes";
 import { parseJsonlFromResponse } from "./util/jsonl-parsing";
 import { ollamaClient as ollama } from "./lib/ollama-client";
@@ -578,3 +579,28 @@ export async function getCloudStatus(): Promise<CloudStatusResponse | null> {
     source: (data.source as CloudStatusSource) || "none",
   };
 }
+
+export async function getMCPConfig(): Promise<MCPConfigResponse> {
+  const response = await fetch(`${API_BASE}/api/v1/mcp`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch MCP config: ${response.status}`);
+  }
+  const data = await response.json();
+  return new MCPConfigResponse(data);
+}
+
+export async function saveMCPConfig(raw: string): Promise<MCPConfigResponse> {
+  const response = await fetch(`${API_BASE}/api/v1/mcp`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ raw }),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to save MCP config: ${response.status}`);
+  }
+  const data = await response.json();
+  return new MCPConfigResponse(data);
+}
+

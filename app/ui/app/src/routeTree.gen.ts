@@ -13,6 +13,7 @@
 import { Route as rootRoute } from './routes/__root'
 import { Route as SettingsImport } from './routes/settings'
 import { Route as OnboardingImport } from './routes/onboarding'
+import { Route as McpImport } from './routes/mcp'
 import { Route as ConnectImport } from './routes/connect'
 import { Route as IndexImport } from './routes/index'
 import { Route as CChatIdImport } from './routes/c.$chatId'
@@ -28,6 +29,12 @@ const SettingsRoute = SettingsImport.update({
 const OnboardingRoute = OnboardingImport.update({
   id: '/onboarding',
   path: '/onboarding',
+  getParentRoute: () => rootRoute,
+} as any)
+
+const McpRoute = McpImport.update({
+  id: '/mcp',
+  path: '/mcp',
   getParentRoute: () => rootRoute,
 } as any)
 
@@ -67,6 +74,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ConnectImport
       parentRoute: typeof rootRoute
     }
+    '/mcp': {
+      id: '/mcp'
+      path: '/mcp'
+      fullPath: '/mcp'
+      preLoaderRoute: typeof McpImport
+      parentRoute: typeof rootRoute
+    }
     '/onboarding': {
       id: '/onboarding'
       path: '/onboarding'
@@ -96,6 +110,7 @@ declare module '@tanstack/react-router' {
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/connect': typeof ConnectRoute
+  '/mcp': typeof McpRoute
   '/onboarding': typeof OnboardingRoute
   '/settings': typeof SettingsRoute
   '/c/$chatId': typeof CChatIdRoute
@@ -104,6 +119,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/connect': typeof ConnectRoute
+  '/mcp': typeof McpRoute
   '/onboarding': typeof OnboardingRoute
   '/settings': typeof SettingsRoute
   '/c/$chatId': typeof CChatIdRoute
@@ -113,6 +129,7 @@ export interface FileRoutesById {
   __root__: typeof rootRoute
   '/': typeof IndexRoute
   '/connect': typeof ConnectRoute
+  '/mcp': typeof McpRoute
   '/onboarding': typeof OnboardingRoute
   '/settings': typeof SettingsRoute
   '/c/$chatId': typeof CChatIdRoute
@@ -120,16 +137,30 @@ export interface FileRoutesById {
 
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/connect' | '/onboarding' | '/settings' | '/c/$chatId'
+  fullPaths:
+    | '/'
+    | '/connect'
+    | '/mcp'
+    | '/onboarding'
+    | '/settings'
+    | '/c/$chatId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/connect' | '/onboarding' | '/settings' | '/c/$chatId'
-  id: '__root__' | '/' | '/connect' | '/onboarding' | '/settings' | '/c/$chatId'
+  to: '/' | '/connect' | '/mcp' | '/onboarding' | '/settings' | '/c/$chatId'
+  id:
+    | '__root__'
+    | '/'
+    | '/connect'
+    | '/mcp'
+    | '/onboarding'
+    | '/settings'
+    | '/c/$chatId'
   fileRoutesById: FileRoutesById
 }
 
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ConnectRoute: typeof ConnectRoute
+  McpRoute: typeof McpRoute
   OnboardingRoute: typeof OnboardingRoute
   SettingsRoute: typeof SettingsRoute
   CChatIdRoute: typeof CChatIdRoute
@@ -138,6 +169,7 @@ export interface RootRouteChildren {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ConnectRoute: ConnectRoute,
+  McpRoute: McpRoute,
   OnboardingRoute: OnboardingRoute,
   SettingsRoute: SettingsRoute,
   CChatIdRoute: CChatIdRoute,
@@ -155,6 +187,7 @@ export const routeTree = rootRoute
       "children": [
         "/",
         "/connect",
+        "/mcp",
         "/onboarding",
         "/settings",
         "/c/$chatId"
@@ -165,6 +198,9 @@ export const routeTree = rootRoute
     },
     "/connect": {
       "filePath": "connect.tsx"
+    },
+    "/mcp": {
+      "filePath": "mcp.tsx"
     },
     "/onboarding": {
       "filePath": "onboarding.tsx"
