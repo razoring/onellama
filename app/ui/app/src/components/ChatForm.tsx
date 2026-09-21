@@ -2,6 +2,7 @@ import Logo from "@/components/Logo";
 import { ModelPicker } from "@/components/ModelPicker";
 import { WebSearchButton } from "@/components/WebSearchButton";
 import { ImageThumbnail } from "@/components/ImageThumbnail";
+import { InteractivePromptOverlay, type PendingPrompt } from "@/components/InteractivePromptOverlay";
 import { isImageFile } from "@/utils/imageUtils";
 import {
   useRef,
@@ -121,6 +122,41 @@ function ChatForm({
   const [fileUploadError, setFileUploadError] = useState<ErrorEvent | null>(
     null,
   );
+  const [pendingPrompt, setPendingPrompt] = useState<PendingPrompt | null>(null);
+
+  useEffect(() => {
+    const pollPending = async () => {
+      try {
+        const res = await fetch("/api/v1/tools/pending");
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.prompt) {
+            setPendingPrompt(data.prompt);
+          } else {
+            setPendingPrompt(null);
+          }
+        }
+      } catch {
+        // ignore
+      }
+    };
+    pollPending();
+    const timer = setInterval(pollPending, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const handlePromptRespond = async (id: string, response: string) => {
+    setPendingPrompt(null);
+    try {
+      await fetch("/api/v1/tools/respond", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, response }),
+      });
+    } catch (err) {
+      console.error("Failed to respond to prompt:", err);
+    }
+  };
 
   const handleThinkingLevelDropdownToggle = (isOpen: boolean) => {
     if (
@@ -856,6 +892,12 @@ function ChatForm({
         )}
 
         <div className="relative w-full px-5">
+          {pendingPrompt && (
+            <InteractivePromptOverlay
+              prompt={pendingPrompt}
+              onRespond={handlePromptRespond}
+            />
+          )}
           <textarea
             ref={textareaRef}
             value={message.content}

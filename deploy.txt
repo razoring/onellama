@@ -1,0 +1,1 @@
+cd c:\Users\conta\OneDrive\Documents\Personal\Projects\Coding\onellama\app\ui\app; npm run build; cd c:\Users\conta\OneDrive\Documents\Personal\Projects\Coding\onellama\; go run ./app/cmd/app

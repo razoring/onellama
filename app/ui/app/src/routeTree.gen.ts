@@ -13,6 +13,7 @@
 import { Route as rootRoute } from './routes/__root'
 import { Route as SettingsImport } from './routes/settings'
 import { Route as OnboardingImport } from './routes/onboarding'
+import { Route as ModelsImport } from './routes/models'
 import { Route as McpImport } from './routes/mcp'
 import { Route as ConnectImport } from './routes/connect'
 import { Route as IndexImport } from './routes/index'
@@ -29,6 +30,12 @@ const SettingsRoute = SettingsImport.update({
 const OnboardingRoute = OnboardingImport.update({
   id: '/onboarding',
   path: '/onboarding',
+  getParentRoute: () => rootRoute,
+} as any)
+
+const ModelsRoute = ModelsImport.update({
+  id: '/models',
+  path: '/models',
   getParentRoute: () => rootRoute,
 } as any)
 
@@ -81,6 +88,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof McpImport
       parentRoute: typeof rootRoute
     }
+    '/models': {
+      id: '/models'
+      path: '/models'
+      fullPath: '/models'
+      preLoaderRoute: typeof ModelsImport
+      parentRoute: typeof rootRoute
+    }
     '/onboarding': {
       id: '/onboarding'
       path: '/onboarding'
@@ -111,6 +125,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/connect': typeof ConnectRoute
   '/mcp': typeof McpRoute
+  '/models': typeof ModelsRoute
   '/onboarding': typeof OnboardingRoute
   '/settings': typeof SettingsRoute
   '/c/$chatId': typeof CChatIdRoute
@@ -120,6 +135,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/connect': typeof ConnectRoute
   '/mcp': typeof McpRoute
+  '/models': typeof ModelsRoute
   '/onboarding': typeof OnboardingRoute
   '/settings': typeof SettingsRoute
   '/c/$chatId': typeof CChatIdRoute
@@ -130,6 +146,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/connect': typeof ConnectRoute
   '/mcp': typeof McpRoute
+  '/models': typeof ModelsRoute
   '/onboarding': typeof OnboardingRoute
   '/settings': typeof SettingsRoute
   '/c/$chatId': typeof CChatIdRoute
@@ -141,16 +158,25 @@ export interface FileRouteTypes {
     | '/'
     | '/connect'
     | '/mcp'
+    | '/models'
     | '/onboarding'
     | '/settings'
     | '/c/$chatId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/connect' | '/mcp' | '/onboarding' | '/settings' | '/c/$chatId'
+  to:
+    | '/'
+    | '/connect'
+    | '/mcp'
+    | '/models'
+    | '/onboarding'
+    | '/settings'
+    | '/c/$chatId'
   id:
     | '__root__'
     | '/'
     | '/connect'
     | '/mcp'
+    | '/models'
     | '/onboarding'
     | '/settings'
     | '/c/$chatId'
@@ -161,6 +187,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ConnectRoute: typeof ConnectRoute
   McpRoute: typeof McpRoute
+  ModelsRoute: typeof ModelsRoute
   OnboardingRoute: typeof OnboardingRoute
   SettingsRoute: typeof SettingsRoute
   CChatIdRoute: typeof CChatIdRoute
@@ -170,6 +197,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ConnectRoute: ConnectRoute,
   McpRoute: McpRoute,
+  ModelsRoute: ModelsRoute,
   OnboardingRoute: OnboardingRoute,
   SettingsRoute: SettingsRoute,
   CChatIdRoute: CChatIdRoute,
@@ -188,6 +216,7 @@ export const routeTree = rootRoute
         "/",
         "/connect",
         "/mcp",
+        "/models",
         "/onboarding",
         "/settings",
         "/c/$chatId"
@@ -201,6 +230,9 @@ export const routeTree = rootRoute
     },
     "/mcp": {
       "filePath": "mcp.tsx"
+    },
+    "/models": {
+      "filePath": "models.tsx"
     },
     "/onboarding": {
       "filePath": "onboarding.tsx"

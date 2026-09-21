@@ -27,6 +27,7 @@ import (
 	"github.com/ollama/ollama/app/server"
 	"github.com/ollama/ollama/app/store"
 	"github.com/ollama/ollama/app/tools"
+	"github.com/ollama/ollama/app/mcp"
 	"github.com/ollama/ollama/app/ui"
 	"github.com/ollama/ollama/app/updater"
 	"github.com/ollama/ollama/app/version"
@@ -235,6 +236,9 @@ func main() {
 
 	// Initialize tools registry
 	toolRegistry := tools.NewRegistry()
+	if err := mcp.StartManager(toolRegistry); err != nil {
+		slog.Error("failed to start mcp manager", "error", err)
+	}
 	slog.Info("initialized tools registry", "tool_count", len(toolRegistry.List()))
 
 	// ctx is the app-level context that will be used to stop the app
@@ -388,7 +392,7 @@ func runInitialWindowsUI(
 		showUIFn("/")
 		return
 	}
-	showUIFn("/connect")
+	showUIFn("/")
 }
 
 func startHiddenTasks() {

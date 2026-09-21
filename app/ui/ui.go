@@ -299,6 +299,8 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/integrations", handle(s.getIntegrationStatuses))
 	mux.Handle("GET /api/v1/mcp", handle(s.getMCP))
 	mux.Handle("POST /api/v1/mcp", handle(s.saveMCP))
+	mux.Handle("GET /api/v1/tools/pending", handle(s.getPendingToolPrompt))
+	mux.Handle("POST /api/v1/tools/respond", handle(s.respondToolPrompt))
 
 	// Ollama proxy endpoints
 	ollamaProxy := s.ollamaProxy()
@@ -310,6 +312,11 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /api/me", ollamaProxy)
 	mux.Handle("POST /api/signout", ollamaProxy)
 	mux.Handle("GET /api/experimental/model-recommendations", ollamaProxy)
+	mux.Handle("GET /api/v1/models/webview", ollamaProxy)
+	mux.Handle("GET /api/v1/models/search", ollamaProxy)
+	mux.Handle("DELETE /api/delete", ollamaProxy)
+	mux.Handle("POST /api/pull", ollamaProxy)
+
 
 	// React app - catch all non-API routes and serve the React app
 	mux.Handle("GET /", s.appHandler())
@@ -949,6 +956,19 @@ func (s *Server) chat(w http.ResponseWriter, r *http.Request) error {
 		}
 	}
 
+	// Register core tools
+	registry.Register(&tools.AskUserTool{})
+	registry.Register(&tools.TerminalTool{})
+	registry.Register(&tools.FSReadTool{})
+	registry.Register(&tools.FSWriteTool{})
+
+	// Register tools from global s.ToolRegistry (e.g. MCP tools)
+	if s.ToolRegistry != nil {
+		for _, t := range s.ToolRegistry.List() {
+			registry.Register(t)
+		}
+	}
+
 	var thinkingTimeStart *time.Time = nil
 	var thinkingTimeEnd *time.Time = nil
 	// Request-only assistant tool_calls buffer
@@ -988,7 +1008,8 @@ func (s *Server) chat(w http.ResponseWriter, r *http.Request) error {
 				reqChat = &temp
 			}
 		}
-		chatReq, err := s.buildChatRequest(reqChat, req.Model, thinkValue, availableTools)
+		settings, _ := s.Store.Settings()
+		chatReq, err := s.buildChatRequest(reqChat, req.Model, thinkValue, availableTools, settings.OutputLength)
 		if err != nil {
 			return err
 		}
@@ -1852,7 +1873,7 @@ func supportsBrowserTools(model string) bool {
 }
 
 // buildChatRequest converts store.Chat to api.ChatRequest
-func (s *Server) buildChatRequest(chat *store.Chat, model string, think any, availableTools []map[string]any) (*api.ChatRequest, error) {
+func (s *Server) buildChatRequest(chat *store.Chat, model string, think any, availableTools []map[string]any, outputLength int) (*api.ChatRequest, error) {
 	var msgs []api.Message
 	for _, m := range chat.Messages {
 		// Skip empty messages if present
@@ -1936,6 +1957,14 @@ func (s *Server) buildChatRequest(chat *store.Chat, model string, think any, ava
 		Think:    thinkValue,
 	}
 
+	if outputLength <= 0 {
+		outputLength = 4096
+	}
+
+	req.Options = map[string]any{
+		"num_predict": outputLength,
+	}
+
 	if len(availableTools) > 0 {
 		tools := make(api.Tools, len(availableTools))
 		for i, toolSchema := range availableTools {
@@ -1974,4 +2003,32 @@ func (s *Server) saveMCP(w http.ResponseWriter, r *http.Request) error {
 
 	w.Header().Set("Content-Type", "application/json")
 	return json.NewEncoder(w).Encode(cfg)
+}
+
+func (s *Server) getPendingToolPrompt(w http.ResponseWriter, _ *http.Request) error {
+	pm := tools.GetPromptManager()
+	pending := pm.GetPending()
+	w.Header().Set("Content-Type", "application/json")
+	return json.NewEncoder(w).Encode(map[string]any{
+		"status": "ok",
+		"prompt": pending,
+	})
+}
+
+func (s *Server) respondToolPrompt(w http.ResponseWriter, r *http.Request) error {
+	var body struct {
+		ID       string `json:"id"`
+		Response string `json:"response"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		return fmt.Errorf("invalid request body: %w", err)
+	}
+
+	pm := tools.GetPromptManager()
+	success := pm.Respond(body.ID, body.Response)
+
+	w.Header().Set("Content-Type", "application/json")
+	return json.NewEncoder(w).Encode(map[string]any{
+		"success": success,
+	})
 }

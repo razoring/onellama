@@ -9,7 +9,7 @@ export const Route = createFileRoute("/mcp")({
 
 function MCPRoute() {
   return (
-    <SidebarLayout title="MCP Servers" sidebar={<AppSidebar current="mcp" />}>
+    <SidebarLayout title="MCPs" sidebar={<AppSidebar current="mcp" />}>
       <MCPServers />
     </SidebarLayout>
   );

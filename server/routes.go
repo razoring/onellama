@@ -1907,6 +1907,9 @@ func (s *Server) GenerateRoutes() (http.Handler, error) {
 	r.POST("/api/show", s.ShowHandler)
 	r.DELETE("/api/delete", s.DeleteHandler)
 
+	r.GET("/api/v1/models/search", s.ModelsSearchHandler)
+	r.GET("/api/v1/models/webview", s.ModelsWebviewHandler)
+
 	r.POST("/api/me", s.WhoamiHandler)
 
 	r.POST("/api/signout", s.SignoutHandler)

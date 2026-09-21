@@ -6,7 +6,7 @@ import { getChat } from "@/api";
 import { Link } from "@/components/ui/link";
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { ChatsResponse } from "@/gotypes";
-import { AppNavigation } from "@/components/AppSidebar";
+import { AppTopNavigation, AppBottomNavigation } from "@/components/AppSidebar";
 
 // there's a hidden debug feature to copy a chat's data to the clipboard by
 // holding shift and clicking this many times within this many seconds
@@ -244,7 +244,7 @@ export function ChatSidebar({ currentChatId }: ChatSidebarProps) {
       className="flex flex-1 flex-col min-h-0 select-none"
     >
       <header className="flex flex-col gap-0.5 px-4 pb-2">
-        <AppNavigation current="chat" />
+        <AppTopNavigation current="chat" />
       </header>
       <div className="flex flex-1 flex-col px-4 py-1 overflow-y-auto overscroll-auto scrollbar-gutter">
         {error ? (
@@ -333,6 +333,9 @@ export function ChatSidebar({ currentChatId }: ChatSidebarProps) {
           </div>
         )}
       </div>
+      <footer className="flex flex-col gap-0.5 px-4 pt-2 pb-4">
+        <AppBottomNavigation current="chat" />
+      </footer>
     </nav>
   );
 }

@@ -23,6 +23,10 @@ func (s *Server) appHandler() http.Handler {
 	fileServer := http.FileServer(http.FS(fsys))
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+		w.Header().Set("Pragma", "no-cache")
+		w.Header().Set("Expires", "0")
+
 		p := strings.TrimPrefix(r.URL.Path, "/")
 		if _, err := fsys.Open(p); err == nil {
 			// Serve the file directly

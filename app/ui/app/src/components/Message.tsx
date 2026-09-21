@@ -2,6 +2,7 @@ import { Message as MessageType, ToolCall, File } from "@/gotypes";
 import Thinking from "./Thinking";
 import StreamingMarkdownContent from "./StreamingMarkdownContent";
 import { ImageThumbnail } from "./ImageThumbnail";
+import { ToolCallContainer } from "./ToolCallContainer";
 import { isImageFile } from "@/utils/imageUtils";
 import CopyButton from "./CopyButton";
 import React, { useState, useMemo, useRef } from "react";
@@ -585,54 +586,25 @@ function ToolCallDisplay({
   }
 
   if (!toolCall.function.name.startsWith("browser.")) {
-    let preview = "";
-    // preview from the tool's JSON arguments.
+    let parsedArgs: any = toolCall.function.arguments;
     try {
-      const argsObj = JSON.parse(toolCall.function.arguments) as Record<
-        string,
-        unknown
-      >;
-      const preferredKey = [
-        "query",
-        "url",
-        "pattern",
-        "id",
-        "file",
-        "path",
-      ].find((k) => Object.prototype.hasOwnProperty.call(argsObj, k));
-      if (preferredKey && typeof (argsObj as any)[preferredKey] === "string") {
-        preview = String((argsObj as any)[preferredKey]);
+      if (typeof toolCall.function.arguments === "string") {
+        parsedArgs = JSON.parse(toolCall.function.arguments);
       }
-    } catch (err) {
-      console.error(
-        "Failed to parse toolCall.function.arguments in Message.tsx:",
-        err,
-      );
+    } catch {
+      // fallback
     }
 
     return (
-      <div className="text-neutral-600 dark:text-neutral-400 relative select-text">
-        <svg
-          className="h-4 w-4 absolute top-1.5"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <path d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
-        </svg>
-        <div className="ml-6">
-          Calling <span className="font-mono">{toolCall.function.name}</span>
-          {preview ? (
-            <>
-              : <InlineSearchTerm term={preview} />
-            </>
-          ) : null}
-          &#8230;
-        </div>
-      </div>
+      <ToolCallContainer
+        toolCall={{
+          name: toolCall.function.name,
+          arguments: parsedArgs,
+          output: typeof (toolCall.function as any).result === "string" 
+            ? (toolCall.function as any).result 
+            : undefined,
+        }}
+      />
     );
   }
 

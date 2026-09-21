@@ -150,6 +150,9 @@ type Settings struct {
 	// ContextLength specifies the context length for the ollama server (using OLLAMA_CONTEXT_LENGTH)
 	ContextLength int
 
+	// OutputLength specifies the number of tokens the LLM can output (using num_predict)
+	OutputLength int
+
 	// TurboEnabled indicates if Ollama Turbo features are enabled
 	TurboEnabled bool
 

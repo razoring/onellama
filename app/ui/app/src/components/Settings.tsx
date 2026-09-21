@@ -776,6 +776,38 @@ export default function Settings() {
                   </div>
                 </div>
               </Field>
+
+              {/* Output Length */}
+              <Field>
+                <div className="flex items-start space-x-3">
+                  <CogIcon className="mt-1 h-5 w-5 flex-shrink-0 text-black dark:text-neutral-100" />
+                  <div className="w-full">
+                    <Label>Output length</Label>
+                    <Description>
+                      Output length determines how many tokens the LLM can output in its responses.
+                    </Description>
+                    <div className="mt-3">
+                      <Slider
+                        value={
+                          settings.OutputLength || 4096
+                        }
+                        onChange={(value) => {
+                          handleChange("OutputLength", value);
+                        }}
+                        options={[
+                          { value: 256, label: "256" },
+                          { value: 512, label: "512" },
+                          { value: 1024, label: "1k" },
+                          { value: 2048, label: "2k" },
+                          { value: 4096, label: "4k" },
+                          { value: 8192, label: "8k" },
+                          { value: 16384, label: "16k" },
+                        ]}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </Field>
             </div>
           </div>
 

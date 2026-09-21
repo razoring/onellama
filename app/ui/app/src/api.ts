@@ -505,6 +505,41 @@ export async function* pullModel(
   }
 }
 
+export async function deleteLocalModel(modelName: string): Promise<void> {
+  const response = await fetch(`${API_BASE}/api/delete`, {
+    method: "DELETE",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ name: modelName }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to delete model: ${response.statusText}`);
+  }
+}
+
+export interface RegistrySearchResponse {
+  html: string;
+}
+
+export async function searchRegistryModels(
+  query?: string,
+  capability?: string,
+  sort?: string,
+): Promise<RegistrySearchResponse> {
+  const params = new URLSearchParams();
+  if (query) params.set("q", query);
+  if (capability) params.set("c", capability);
+  if (sort) params.set("o", sort);
+
+  const response = await fetch(`${API_BASE}/api/v1/models/search?${params.toString()}`);
+  if (!response.ok) {
+    throw new Error(`Failed to search registry: ${response.statusText}`);
+  }
+  return response.json();
+}
+
 export interface ModelRecommendation {
   model: string;
   description: string;
