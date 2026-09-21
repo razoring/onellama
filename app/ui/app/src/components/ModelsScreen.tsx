@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { pullModel, getModels, deleteLocalModel } from "@/api";
 import { Model } from "@/gotypes";
+import { API_BASE } from "@/lib/config";
 import { 
   GlobeAltIcon, 
   CpuChipIcon, 
@@ -109,7 +110,7 @@ export function ModelsScreen() {
     getModelName(m).toLowerCase().includes(searchFilter.toLowerCase())
   );
 
-  const webviewSrc = `/api/v1/models/webview?path=search&theme=${theme}`;
+  const webviewSrc = `${API_BASE}/api/v1/models/webview?path=search&theme=${theme}`;
 
 
   return (

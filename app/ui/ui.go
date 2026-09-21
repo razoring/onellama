@@ -302,6 +302,9 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/tools/pending", handle(s.getPendingToolPrompt))
 	mux.Handle("POST /api/v1/tools/respond", handle(s.respondToolPrompt))
 
+	mux.Handle("GET /api/v1/models/webview", handle(s.modelsWebviewHandler))
+	mux.Handle("GET /api/v1/models/search", handle(s.modelsSearchHandler))
+
 	// Ollama proxy endpoints
 	ollamaProxy := s.ollamaProxy()
 	mux.Handle("GET /api/tags", ollamaProxy)
@@ -312,8 +315,6 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /api/me", ollamaProxy)
 	mux.Handle("POST /api/signout", ollamaProxy)
 	mux.Handle("GET /api/experimental/model-recommendations", ollamaProxy)
-	mux.Handle("GET /api/v1/models/webview", ollamaProxy)
-	mux.Handle("GET /api/v1/models/search", ollamaProxy)
 	mux.Handle("DELETE /api/delete", ollamaProxy)
 	mux.Handle("POST /api/pull", ollamaProxy)
 
