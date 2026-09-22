@@ -1,0 +1,3 @@
+installed tag beside model name in search and model page
+play button to launch LLM with apps under Applications in the model page
+quick download button in model page
