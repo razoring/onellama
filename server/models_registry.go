@@ -147,86 +147,68 @@ func (s *Server) ModelsWebviewHandler(c *gin.Context) {
 		var themeCSS string
 		if theme == "dark" || theme == "" {
 			themeCSS = `<style id="onellama-theme">
-				:root {
-					--bg-primary: #171717 !important;
-					--bg-secondary: #171717 !important;
-					--bg-tertiary: #262626 !important;
-					--text-primary: #f3f4f6 !important;
-					--text-secondary: #9ca3af !important;
-					--border-color: #262626 !important;
-				}
+/* ---------- onellama dark theme for ollama.com (webview) ---------- */
+/* Canonical override — keep in sync with app/ui/models_registry.go and search.html */
+:root { color-scheme: dark; }
 
-				html, body {
-					background-color: #171717 !important;
-					color: #f3f4f6 !important;
-					color-scheme: dark !important;
-				}
+/* Canvas */
+html, body, main { background-color:#171717 !important; color-scheme:dark !important; }
+body, main { color:#f5f5f5 !important; }
 
-				/* Target titles and primary text */
-				.text-black, .text-neutral-900, .text-neutral-800, .text-neutral-700,
-				h1, h2, h3, h4, h5, h6, strong, b {
-					color: #f3f4f6 !important;
-				}
+/* Header shell */
+header, header.sticky, header.bg-white, .bg-white { background-color:#171717 !important; border-color:#333 !important; }
+header nav a, header span { color:#e5e5e5 !important; }
 
-				/* Target descriptions and secondary text */
-				.text-neutral-600, .text-neutral-500, .text-neutral-400,
-				.text-gray-600, .text-gray-500, .text-gray-400,
-				.text-slate-600, .text-slate-500, .text-slate-400 {
-					color: #9ca3af !important;
-				}
+/* Primary / secondary text ramp */
+.text-black, .text-neutral-900, h1, h2, h3, h4, h5, h6, strong, b, .prose, .prose * { color:#f5f5f5 !important; }
+.text-neutral-800 { color:#d4d4d4 !important; }
+.text-neutral-700 { color:#d4d4d4 !important; }
+.text-neutral-600, .text-neutral-500, .text-neutral-400, .text-gray-500, .text-gray-600 { color:#a3a3a3 !important; }
+.text-gray-400 { color:#9ca3af !important; }
+.text-white { color:#fff !important; }
 
-				/* Target white/light backgrounds */
-				.bg-white, body, main, section {
-					background-color: #171717 !important;
-				}
+/* Semantic accents — site blue/indigo/green kept but lightened for dark bg */
+.text-blue-600 { color:#93c5fd !important; }
+.text-indigo-600 { color:#c7d2fe !important; }
+.text-green-700 { color:#6ee7b7 !important; }
+.bg-cyan-50 { background-color:rgba(34,211,238,0.15) !important; }
+.text-cyan-500 { color:#67e8f9 !important; }
+.bg-indigo-50 { background-color:rgba(99,102,241,0.15) !important; }
+.bg-\[#ddf4ff\] { background-color:rgba(59,130,246,0.15) !important; }
 
-				/* Card containers, filters & borders */
-				.bg-neutral-50, .bg-neutral-100, .bg-neutral-200,
-				.bg-gray-50, .bg-gray-100, .bg-gray-200,
-				[class*="border-neutral"], [class*="border-gray"] {
-					background-color: #171717 !important;
-					border-color: #262626 !important;
-				}
+/* Surfaces */
+.bg-neutral-50 { background-color:#1f1f1f !important; }
+[class*="bg-white"] { background-color:#171717 !important; }
+.bg-black\/5, div[class*="bg-black/5"] { background-color:rgba(255,255,255,0.04) !important; }
+.bg-neutral-800 { background-color:#404040 !important; color:#fff !important; }
+a.bg-neutral-800:hover, a.bg-neutral-800:focus, .focus\:bg-black { background-color:#525252 !important; }
 
-				/* Tag pills (tools, thinking, cloud, vision) */
-				.bg-neutral-900, .bg-black, [class*="bg-neutral-800"], [class*="bg-neutral-900"] {
-					background-color: #1e293b !important;
-					color: #60a5fa !important;
-					border: 1px solid #334155 !important;
-				}
+/* Filter chips — unselected stays transparent with neutral ink; selected lifts */
+[class*="bg-black"] { background-color:rgba(255,255,255,0.04) !important; color:#b3b3b3 !important; }
+.peer:checked ~ .peer-checked\:bg-neutral-100 { background-color:rgba(255,255,255,0.10) !important; }
+.min-md\:hover\:bg-neutral-100:hover { background-color:rgba(255,255,255,0.06) !important; }
+[class*="bg-neutral-800"], a[class*="bg-neutral-800"] { background-color:rgba(255,255,255,0.08) !important; color:#f5f5f5 !important; border-color:#333 !important; }
+a[class*="bg-neutral-800"]:hover, a[class*="bg-neutral-800"]:focus { background-color:rgba(255,255,255,0.12) !important; }
 
-				/* Links */
-				a {
-					color: #60a5fa !important;
-				}
-				h1 a, h2 a, h3 a, a.group {
-					color: #f3f4f6 !important;
-				}
+/* Code / prose */
+pre, code, .prose-pre pre, .prose-code code, code\:bg-gray-200 { background-color:#1a1a1a !important; color:#d4d4d4 !important; }
+md-pre, md-code, md-bold, md-italic { color:#d4d4d4 !important; }
 
-				/* Borders */
-				hr, [class*="divide-"] {
-					border-color: #262626 !important;
-				}
+/* Detail page lists / bullets surfaced as plain spans */
+.prose ul, .prose ol, .prose li, ul, ol, li, [class*="markdown"], .md-text { color:#e5e5e5 !important; }
+li::marker { color:#d4d4d4 !important; }
 
-				/* Inputs & Selects */
-				input, select, textarea {
-					background-color: #171717 !important;
-					color: #f3f4f6 !important;
-					border-color: #333333 !important;
-				}
+/* Controls */
+input, select, textarea { background-color:#171717 !important; border-color:#333 !important; color:#e5e5e5 !important; }
+input[type="text"], input[type="search"] { background-color:transparent !important; }
+input::placeholder, textarea::placeholder { color:#6b7280 !important; }
+select:hover, option { background-color:#1c1c1c !important; color:#e5e5e5 !important; }
+.border-neutral-100, .border-neutral-200, .border-gray-200 { border-color:#333 !important; }
 
-				/* Headers and Navbar */
-				header {
-					background-color: #171717 !important;
-				}
-				header nav .appearance-none {
-					background-color: #262626 !important;
-					border-color: #333333 !important;
-				}
-				header nav .appearance-none input {
-					background-color: transparent !important;
-				}
-			</style>`
+/* Scrollbar */
+::-webkit-scrollbar { width:10px; height:10px; }
+::-webkit-scrollbar-thumb { background:#333; border-radius:8px; }
+</style>`
 		} else {
 			themeCSS = `<style id="onellama-theme">
 				html { color-scheme: light !important; background: #ffffff !important; }

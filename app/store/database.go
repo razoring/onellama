@@ -14,7 +14,7 @@ import (
 
 // currentSchemaVersion defines the current database schema version.
 // Increment this when making schema changes that require migrations.
-const currentSchemaVersion = 20
+const currentSchemaVersion = 21
 
 // database wraps the SQLite connection.
 // SQLite handles its own locking for concurrent access:
@@ -92,6 +92,7 @@ func (db *database) init() error {
 		claude_desktop_used BOOLEAN NOT NULL DEFAULT 0,
 		codex_desktop_used BOOLEAN NOT NULL DEFAULT 0,
 		output_length INTEGER NOT NULL DEFAULT 0,
+		theme TEXT NOT NULL DEFAULT 'automatic',
 		schema_version INTEGER NOT NULL DEFAULT %d
 	);
 
@@ -297,6 +298,11 @@ func (db *database) migrate() error {
 				return fmt.Errorf("migrate v19 to v20: %w", err)
 			}
 			version = 20
+		case 20:
+			if err := db.migrateV20ToV21(); err != nil {
+				return fmt.Errorf("migrate v20 to v21: %w", err)
+			}
+			version = 21
 		default:
 			// If we have a version we don't recognize, just set it to current
 			// This might happen during development
@@ -615,6 +621,16 @@ func (db *database) migrateV19ToV20() error {
 		return fmt.Errorf("add output_length column: %w", err)
 	}
 	_, err = db.conn.Exec(`UPDATE settings SET schema_version = 20`)
+	return err
+}
+
+// migrateV20ToV21 adds the theme column to the settings table.
+func (db *database) migrateV20ToV21() error {
+	_, err := db.conn.Exec(`ALTER TABLE settings ADD COLUMN theme TEXT NOT NULL DEFAULT 'automatic'`)
+	if err != nil && !duplicateColumnError(err) {
+		return fmt.Errorf("add theme column: %w", err)
+	}
+	_, err = db.conn.Exec(`UPDATE settings SET schema_version = 21`)
 	return err
 }
 
@@ -1266,11 +1282,29 @@ func (db *database) getSettings() (Settings, error) {
 	var s Settings
 
 	err := db.conn.QueryRow(`
-		SELECT expose, survey, browser, models, agent, tools, working_dir, context_length, turbo_enabled, websearch_enabled, selected_model, sidebar_open, last_home_view, onboarding_version, think_enabled, think_level, auto_update_enabled, claude_desktop_used, codex_desktop_used, output_length
+		SELECT expose, survey, browser, models, agent, tools, working_dir, context_length, turbo_enabled, websearch_enabled, selected_model, sidebar_open, last_home_view, onboarding_version, think_enabled, think_level, auto_update_enabled, claude_desktop_used, codex_desktop_used, output_length, theme
 		FROM settings
-	`).Scan(&s.Expose, &s.Survey, &s.Browser, &s.Models, &s.Agent, &s.Tools, &s.WorkingDir, &s.ContextLength, &s.TurboEnabled, &s.WebSearchEnabled, &s.SelectedModel, &s.SidebarOpen, &s.LastHomeView, &s.OnboardingVersion, &s.ThinkEnabled, &s.ThinkLevel, &s.AutoUpdateEnabled, &s.ClaudeDesktopUsed, &s.CodexDesktopUsed, &s.OutputLength)
+	`).Scan(&s.Expose, &s.Survey, &s.Browser, &s.Models, &s.Agent, &s.Tools, &s.WorkingDir, &s.ContextLength, &s.TurboEnabled, &s.WebSearchEnabled, &s.SelectedModel, &s.SidebarOpen, &s.LastHomeView, &s.OnboardingVersion, &s.ThinkEnabled, &s.ThinkLevel, &s.AutoUpdateEnabled, &s.ClaudeDesktopUsed, &s.CodexDesktopUsed, &s.OutputLength, &s.Theme)
 	if err != nil {
-		return Settings{}, fmt.Errorf("get settings: %w", err)
+		if !strings.Contains(strings.ToLower(err.Error()), "no such column") {
+			return Settings{}, fmt.Errorf("get settings: %w", err)
+		}
+		// Database records predate the theme column. Ensure the migration has
+		// run (it normally runs at init) and fall back to the automatic default.
+		if err := db.migrate(); err != nil {
+			return Settings{}, fmt.Errorf("migrate schema: %w", err)
+		}
+		err := db.conn.QueryRow(`
+			SELECT expose, survey, browser, models, agent, tools, working_dir, context_length, turbo_enabled, websearch_enabled, selected_model, sidebar_open, last_home_view, onboarding_version, think_enabled, think_level, auto_update_enabled, claude_desktop_used, codex_desktop_used, output_length, theme
+			FROM settings
+		`).Scan(&s.Expose, &s.Survey, &s.Browser, &s.Models, &s.Agent, &s.Tools, &s.WorkingDir, &s.ContextLength, &s.TurboEnabled, &s.WebSearchEnabled, &s.SelectedModel, &s.SidebarOpen, &s.LastHomeView, &s.OnboardingVersion, &s.ThinkEnabled, &s.ThinkLevel, &s.AutoUpdateEnabled, &s.ClaudeDesktopUsed, &s.CodexDesktopUsed, &s.OutputLength, &s.Theme)
+		if err != nil {
+			return Settings{}, fmt.Errorf("get settings: %w", err)
+		}
+	}
+
+	if s.Theme == "" {
+		s.Theme = "automatic"
 	}
 
 	return s, nil
@@ -1284,8 +1318,8 @@ func (db *database) setSettings(s Settings) error {
 
 	_, err := db.conn.Exec(`
 		UPDATE settings
-		SET expose = ?, survey = ?, browser = ?, models = ?, agent = ?, tools = ?, working_dir = ?, context_length = ?, turbo_enabled = ?, websearch_enabled = ?, selected_model = ?, sidebar_open = ?, last_home_view = ?, onboarding_version = MAX(onboarding_version, ?), think_enabled = ?, think_level = ?, auto_update_enabled = ?, claude_desktop_used = ?, output_length = ?
-	`, s.Expose, s.Survey, s.Browser, s.Models, s.Agent, s.Tools, s.WorkingDir, s.ContextLength, s.TurboEnabled, s.WebSearchEnabled, s.SelectedModel, s.SidebarOpen, lastHomeView, s.OnboardingVersion, s.ThinkEnabled, s.ThinkLevel, s.AutoUpdateEnabled, s.ClaudeDesktopUsed, s.OutputLength)
+		SET expose = ?, survey = ?, browser = ?, models = ?, agent = ?, tools = ?, working_dir = ?, context_length = ?, turbo_enabled = ?, websearch_enabled = ?, selected_model = ?, sidebar_open = ?, last_home_view = ?, onboarding_version = MAX(onboarding_version, ?), think_enabled = ?, think_level = ?, auto_update_enabled = ?, claude_desktop_used = ?, output_length = ?, theme = ?
+	`, s.Expose, s.Survey, s.Browser, s.Models, s.Agent, s.Tools, s.WorkingDir, s.ContextLength, s.TurboEnabled, s.WebSearchEnabled, s.SelectedModel, s.SidebarOpen, lastHomeView, s.OnboardingVersion, s.ThinkEnabled, s.ThinkLevel, s.AutoUpdateEnabled, s.ClaudeDesktopUsed, s.OutputLength, s.Theme)
 	if err != nil {
 		return fmt.Errorf("set settings: %w", err)
 	}

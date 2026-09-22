@@ -2,13 +2,7 @@
 @plugin "@tailwindcss/typography";
 @import "katex/dist/katex.min.css";
 
-@custom-variant dark {
-  @media (prefers-color-scheme: dark) {
-    &:not(.light-only, .light-only *) {
-      @slot;
-    }
-  }
-}
+@custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
   --font-sans: ui-sans-serif, system-ui, "Segoe UI", sans-serif;
@@ -21,7 +15,11 @@
     color-scheme: light dark;
   }
 
-  .light-only {
+  .dark {
+    color-scheme: dark;
+  }
+
+  .light {
     color-scheme: light;
   }
 

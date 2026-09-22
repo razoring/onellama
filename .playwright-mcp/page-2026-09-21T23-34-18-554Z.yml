@@ -1,0 +1,202 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - navigation [ref=e3]:
+      - link [ref=e4] [cursor=pointer]:
+        - /url: /
+        - img "Ollama" [ref=e5]
+      - generic [ref=e6]:
+        - link "Models" [ref=e7] [cursor=pointer]:
+          - /url: /search
+        - link "Docs" [ref=e8] [cursor=pointer]:
+          - /url: /docs
+        - link "Pricing" [ref=e9] [cursor=pointer]:
+          - /url: /pricing
+      - textbox "Search models" [ref=e17]
+      - generic [ref=e18]:
+        - link "Sign in" [ref=e19] [cursor=pointer]:
+          - /url: /signin
+        - link "Download" [ref=e20] [cursor=pointer]:
+          - /url: /download
+  - main [ref=e21]:
+    - generic [ref=e23]:
+      - heading "Run open models. Get more usage." [level=1] [ref=e24]: Run open models.Get more usage.
+      - paragraph [ref=e25]: Ollama lets you use open models with your coding agents so you can spend less while keeping your data private.
+      - link "Download" [ref=e27] [cursor=pointer]:
+        - /url: /download
+    - generic [ref=e29]:
+      - paragraph [ref=e30]: Trusted by more than 9M developers
+      - generic [ref=e33]:
+        - img "Apple" [ref=e34]
+        - img "Nike" [ref=e35]
+        - img "Microsoft" [ref=e36]
+        - img "Meta" [ref=e37]
+        - img "NASA" [ref=e38]
+        - img "Netflix" [ref=e39]
+        - img "NVIDIA" [ref=e40]
+        - img "Adobe" [ref=e41]
+        - img "IBM" [ref=e42]
+        - img "BMW" [ref=e43]
+        - img "Mercedes-Benz" [ref=e44]
+        - img "Intel" [ref=e45]
+        - img "Volvo" [ref=e46]
+        - img "Salesforce" [ref=e47]
+        - img "Databricks" [ref=e48]
+        - img "Intuit" [ref=e49]
+        - img "MIT" [ref=e50]
+        - img "Walmart" [ref=e51]
+        - img "Visa" [ref=e52]
+    - generic [ref=e74]:
+      - navigation "Product highlights" [ref=e75]:
+        - generic [ref=e76]:
+          - link "Reliably fast" [ref=e77] [cursor=pointer]:
+            - /url: "#rail-1"
+          - link "Frontier open models" [ref=e79] [cursor=pointer]:
+            - /url: "#rail-2"
+          - link "Keep your setup" [ref=e81] [cursor=pointer]:
+            - /url: "#rail-3"
+          - link "Your data stays yours" [ref=e83] [cursor=pointer]:
+            - /url: "#rail-4"
+          - link "Predictable pricing" [ref=e85] [cursor=pointer]:
+            - /url: "#rail-5"
+      - generic [ref=e87]:
+        - article [ref=e88]:
+          - heading "Reliably fast" [level=2] [ref=e89]
+          - paragraph [ref=e90]: The same open models, served faster. Dedicated capacity so throughput holds up when you are running several agents at once.
+          - 'figure "Model: DeepSeek v4 Flash. Sources: TokenDyno and provider published figures, August 2026." [ref=e91]':
+            - generic [ref=e92]: tokens/sec
+            - generic [ref=e93]:
+              - generic [ref=e94]:
+                - generic [ref=e95]: Ollama
+                - generic [ref=e97]: "195.6"
+              - generic [ref=e98]:
+                - generic [ref=e99]: Provider A
+                - generic [ref=e101]: "97.6"
+              - generic [ref=e102]:
+                - generic [ref=e103]: Provider B
+                - generic [ref=e105]: "63"
+              - generic [ref=e106]:
+                - generic [ref=e107]: Provider C
+                - generic [ref=e109]: "50.5"
+        - article [ref=e111]:
+          - heading "Frontier open models" [level=2] [ref=e112]
+          - paragraph [ref=e113]: Frontier capability with more usage. The latest open models match the best closed ones, at a fraction of the cost.
+          - generic [ref=e114]:
+            - generic [ref=e115]:
+              - generic [ref=e116]: score
+              - generic [ref=e117]: cost
+            - generic [ref=e118]:
+              - generic [ref=e119]:
+                - generic [ref=e120]:
+                  - generic [ref=e121]: gpt-5.6-sol
+                  - generic [ref=e122]: "[max]"
+                - generic [ref=e128]: 73% ±3%
+                - generic [ref=e129]: $6.46
+              - generic [ref=e130]:
+                - generic [ref=e131]:
+                  - generic [ref=e132]: claude-fable-5
+                  - generic [ref=e133]: "[max]"
+                - generic [ref=e139]: 70% ±4%
+                - generic [ref=e140]: $21.63
+              - generic [ref=e141]:
+                - generic [ref=e142]:
+                  - generic [ref=e143]: kimi-k3
+                  - generic [ref=e144]: "[max]"
+                - generic [ref=e150]: 69% ±5%
+                - generic [ref=e151]: $4.65
+              - generic [ref=e152]:
+                - generic [ref=e153]:
+                  - generic [ref=e154]: deepseek-v4-pro
+                  - generic [ref=e155]: "[max]"
+                - generic [ref=e161]: 63% ±6%
+                - generic [ref=e162]: $1.67
+            - generic [ref=e165]:
+              - generic [ref=e166]: 0%
+              - generic [ref=e167]: 20%
+              - generic [ref=e168]: 40%
+              - generic [ref=e169]: 60%
+              - generic [ref=e170]: 80%
+            - paragraph [ref=e173]: "Source: DeepSWE, August 2026."
+          - link "Browse all models →" [ref=e174] [cursor=pointer]:
+            - /url: /search
+        - article [ref=e175]:
+          - heading "Keep your setup" [level=2] [ref=e176]
+          - paragraph [ref=e177]: Launch Claude Code, Codex, and more with one command. Switch models without changing your workflow.
+          - generic [ref=e178]:
+            - generic [ref=e179]: Claude Code
+            - generic [ref=e181]: Codex
+            - generic [ref=e183]: OpenCode
+            - generic [ref=e185]: Hermes Agent
+            - generic [ref=e187]: OpenClaw
+            - generic [ref=e189]: VS Code
+            - generic [ref=e191]: Pi
+            - generic [ref=e193]: n8n
+          - link "See all integrations →" [ref=e195] [cursor=pointer]:
+            - /url: https://docs.ollama.com/integrations
+        - article [ref=e196]:
+          - heading "Your data stays yours" [level=2] [ref=e197]
+          - paragraph [ref=e198]: Your data is never trained on by any provider. All cloud models are hosted in the US, Europe & Singapore. Get the privacy benefits of local and the power of cloud.
+          - generic [ref=e199]:
+            - generic [ref=e200]:
+              - paragraph [ref=e201]: Private
+              - paragraph [ref=e204]: Your prompts are never tracked or trained on.
+            - generic [ref=e205]:
+              - paragraph [ref=e206]: Hosted
+              - paragraph [ref=e209]: Cloud models are only hosted in US, Europe & Singapore.
+            - generic [ref=e210]:
+              - paragraph [ref=e211]: Local
+              - paragraph [ref=e214]: Nothing you run locally ever leaves your machine.
+            - generic [ref=e215]:
+              - paragraph [ref=e216]: Open
+              - paragraph [ref=e219]:
+                - text: Open weights and
+                - link "open source" [ref=e220] [cursor=pointer]:
+                  - /url: https://github.com/ollama/ollama
+                - text: .
+          - link "How we handle data →" [ref=e221] [cursor=pointer]:
+            - /url: /privacy
+        - article [ref=e222]:
+          - heading "Predictable pricing" [level=2] [ref=e223]
+          - paragraph [ref=e224]: No hidden limits or confusing pricing. Start free and upgrade or add more usage when you need more. Local models are always free.
+          - generic [ref=e225]:
+            - generic [ref=e226]:
+              - generic [ref=e227]:
+                - generic [ref=e228]: Pro
+                - generic [ref=e229]: $20/mo
+              - paragraph [ref=e230]: Includes $60 of usage
+            - generic [ref=e234]:
+              - generic [ref=e235]: $37.20 used · resets on the 1st
+              - generic [ref=e236]: Add usage credits
+            - generic [ref=e237]:
+              - generic [ref=e238]: Usage included
+              - generic [ref=e239]: Pro — $60
+              - generic [ref=e240]: Max — $300
+          - link "See pricing →" [ref=e241] [cursor=pointer]:
+            - /url: /pricing
+    - generic [ref=e242]:
+      - heading "Get up and running in less than two minutes" [level=2] [ref=e243]
+      - link "Download" [ref=e244] [cursor=pointer]:
+        - /url: /download
+  - contentinfo [ref=e245]:
+    - generic [ref=e247]:
+      - generic [ref=e248]: © 2026 Ollama
+      - generic [ref=e249]:
+        - link "Download" [ref=e250] [cursor=pointer]:
+          - /url: /download
+        - link "Blog" [ref=e251] [cursor=pointer]:
+          - /url: /blog
+        - link "Docs" [ref=e252] [cursor=pointer]:
+          - /url: https://docs.ollama.com
+        - link "GitHub" [ref=e253] [cursor=pointer]:
+          - /url: https://github.com/ollama/ollama
+        - link "Discord" [ref=e254] [cursor=pointer]:
+          - /url: https://discord.com/invite/ollama
+        - link "X (Twitter)" [ref=e255] [cursor=pointer]:
+          - /url: https://twitter.com/ollama
+        - link "Support" [ref=e256] [cursor=pointer]:
+          - /url: mailto:support@ollama.com
+        - link "Careers" [ref=e257] [cursor=pointer]:
+          - /url: https://jobs.ashbyhq.com/ollama
+        - link "Privacy" [ref=e258] [cursor=pointer]:
+          - /url: /privacy
+        - link "Terms" [ref=e259] [cursor=pointer]:
+          - /url: /terms

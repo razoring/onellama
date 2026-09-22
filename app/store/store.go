@@ -186,6 +186,9 @@ type Settings struct {
 	// CodexDesktopUsed records whether ChatGPT has successfully connected through Ollama.
 	// Only MarkCodexDesktopUsed updates it; SetSettings preserves the stored value.
 	CodexDesktopUsed bool
+
+	// Theme is the app-wide appearance preference: "dark", "light", or "automatic".
+	Theme string
 }
 
 // Keep in sync with CURRENT_ONBOARDING_VERSION in app/ui/app/src/lib/onboarding.ts.

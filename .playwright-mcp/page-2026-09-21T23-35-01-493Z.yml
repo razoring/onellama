@@ -1,0 +1,447 @@
+- generic [ref=f1e1]:
+  - banner [ref=f1e2]:
+    - navigation [ref=f1e3]:
+      - link [ref=f1e4] [cursor=pointer]:
+        - /url: /
+        - img "Ollama" [ref=f1e5]
+      - generic [ref=f1e6]:
+        - link "Models" [ref=f1e7] [cursor=pointer]:
+          - /url: /search
+        - link "Docs" [ref=f1e8] [cursor=pointer]:
+          - /url: /docs
+        - link "Pricing" [ref=f1e9] [cursor=pointer]:
+          - /url: /pricing
+      - textbox "Search models" [active] [ref=f1e16]: llama
+      - generic [ref=f1e17]:
+        - link "Sign in" [ref=f1e18] [cursor=pointer]:
+          - /url: /signin
+        - link "Download" [ref=f1e19] [cursor=pointer]:
+          - /url: /download
+  - main [ref=f1e20]:
+    - generic [ref=f1e22]:
+      - generic [ref=f1e23]:
+        - group [ref=f1e24]:
+          - generic [ref=f1e25]:
+            - checkbox "Cloud" [ref=f1e26]
+            - generic [ref=f1e27] [cursor=pointer]: Cloud
+          - generic [ref=f1e28]:
+            - checkbox "Embedding" [ref=f1e29]
+            - generic [ref=f1e30] [cursor=pointer]: Embedding
+          - generic [ref=f1e31]:
+            - checkbox "Vision" [ref=f1e32]
+            - generic [ref=f1e33] [cursor=pointer]: Vision
+          - generic [ref=f1e34]:
+            - checkbox "Tools" [ref=f1e35]
+            - generic [ref=f1e36] [cursor=pointer]: Tools
+          - generic [ref=f1e37]:
+            - checkbox "Thinking" [ref=f1e38]
+            - generic [ref=f1e39] [cursor=pointer]: Thinking
+        - combobox [ref=f1e41] [cursor=pointer]:
+          - option "Popular" [selected]
+          - option "Newest"
+      - list [ref=f1e42]:
+        - listitem [ref=f1e43]:
+          - link "llama3.1 Llama 3.1 is a new state-of-the-art model from Meta available in 8B, 70B and 405B parameter sizes. tools 8b 70b 405b 119.7M Pulls 93 Tags Updated 1 year ago" [ref=f1e44] [cursor=pointer]:
+            - /url: /library/llama3.1
+            - generic "llama3.1" [ref=f1e45]:
+              - heading "llama3.1" [level=2] [ref=f1e46]
+              - paragraph [ref=f1e47]: Llama 3.1 is a new state-of-the-art model from Meta available in 8B, 70B and 405B parameter sizes.
+            - generic [ref=f1e48]:
+              - generic [ref=f1e49]:
+                - generic [ref=f1e50]: tools
+                - generic [ref=f1e51]: 8b
+                - generic [ref=f1e52]: 70b
+                - generic [ref=f1e53]: 405b
+              - paragraph [ref=f1e54]:
+                - generic [ref=f1e55]:
+                  - generic [ref=f1e58]: 119.7M
+                  - generic [ref=f1e59]: Pulls
+                - generic [ref=f1e60]:
+                  - generic [ref=f1e64]: "93"
+                  - generic [ref=f1e65]: Tags
+                - generic "Nov 30, 2024 10:34 PM UTC" [ref=f1e66]:
+                  - generic [ref=f1e69]: Updated
+                  - generic [ref=f1e70]: 1 year ago
+        - listitem [ref=f1e71]:
+          - link "llama3.2 Meta's Llama 3.2 goes small with 1B and 3B models. tools 1b 3b 84M Pulls 63 Tags Updated 1 year ago" [ref=f1e72] [cursor=pointer]:
+            - /url: /library/llama3.2
+            - generic "llama3.2" [ref=f1e73]:
+              - heading "llama3.2" [level=2] [ref=f1e74]
+              - paragraph [ref=f1e75]: Meta's Llama 3.2 goes small with 1B and 3B models.
+            - generic [ref=f1e76]:
+              - generic [ref=f1e77]:
+                - generic [ref=f1e78]: tools
+                - generic [ref=f1e79]: 1b
+                - generic [ref=f1e80]: 3b
+              - paragraph [ref=f1e81]:
+                - generic [ref=f1e82]:
+                  - generic [ref=f1e85]: 84M
+                  - generic [ref=f1e86]: Pulls
+                - generic [ref=f1e87]:
+                  - generic [ref=f1e91]: "63"
+                  - generic [ref=f1e92]: Tags
+                - generic "Sep 25, 2024 9:09 PM UTC" [ref=f1e93]:
+                  - generic [ref=f1e96]: Updated
+                  - generic [ref=f1e97]: 1 year ago
+        - listitem [ref=f1e98]:
+          - 'link "llama3 Meta Llama 3: The most capable openly available LLM to date 8b 70b 25.3M Pulls 68 Tags Updated 2 years ago" [ref=f1e99] [cursor=pointer]':
+            - /url: /library/llama3
+            - generic "llama3" [ref=f1e100]:
+              - heading "llama3" [level=2] [ref=f1e101]
+              - paragraph [ref=f1e102]: "Meta Llama 3: The most capable openly available LLM to date"
+            - generic [ref=f1e103]:
+              - generic [ref=f1e104]:
+                - generic [ref=f1e105]: 8b
+                - generic [ref=f1e106]: 70b
+              - paragraph [ref=f1e107]:
+                - generic [ref=f1e108]:
+                  - generic [ref=f1e111]: 25.3M
+                  - generic [ref=f1e112]: Pulls
+                - generic [ref=f1e113]:
+                  - generic [ref=f1e117]: "68"
+                  - generic [ref=f1e118]: Tags
+                - generic "May 21, 2024 4:54 AM UTC" [ref=f1e119]:
+                  - generic [ref=f1e122]: Updated
+                  - generic [ref=f1e123]: 2 years ago
+        - listitem [ref=f1e124]:
+          - link "llama3.2-vision Llama 3.2 Vision is a collection of instruction-tuned image reasoning generative models in 11B and 90B sizes. vision 11b 90b 5.3M Pulls 9 Tags Updated 1 year ago" [ref=f1e125] [cursor=pointer]:
+            - /url: /library/llama3.2-vision
+            - generic "llama3.2-vision" [ref=f1e126]:
+              - heading "llama3.2-vision" [level=2] [ref=f1e127]
+              - paragraph [ref=f1e128]: Llama 3.2 Vision is a collection of instruction-tuned image reasoning generative models in 11B and 90B sizes.
+            - generic [ref=f1e129]:
+              - generic [ref=f1e130]:
+                - generic [ref=f1e131]: vision
+                - generic [ref=f1e132]: 11b
+                - generic [ref=f1e133]: 90b
+              - paragraph [ref=f1e134]:
+                - generic [ref=f1e135]:
+                  - generic [ref=f1e138]: 5.3M
+                  - generic [ref=f1e139]: Pulls
+                - generic [ref=f1e140]:
+                  - generic [ref=f1e144]: "9"
+                  - generic [ref=f1e145]: Tags
+                - generic "May 22, 2025 7:15 PM UTC" [ref=f1e146]:
+                  - generic [ref=f1e149]: Updated
+                  - generic [ref=f1e150]: 1 year ago
+        - listitem [ref=f1e151]:
+          - link "llama3.3 New state of the art 70B model. Llama 3.3 70B offers similar performance compared to the Llama 3.1 405B model. tools 70b 4.1M Pulls 14 Tags Updated 1 year ago" [ref=f1e152] [cursor=pointer]:
+            - /url: /library/llama3.3
+            - generic "llama3.3" [ref=f1e153]:
+              - heading "llama3.3" [level=2] [ref=f1e154]
+              - paragraph [ref=f1e155]: New state of the art 70B model. Llama 3.3 70B offers similar performance compared to the Llama 3.1 405B model.
+            - generic [ref=f1e156]:
+              - generic [ref=f1e157]:
+                - generic [ref=f1e158]: tools
+                - generic [ref=f1e159]: 70b
+              - paragraph [ref=f1e160]:
+                - generic [ref=f1e161]:
+                  - generic [ref=f1e164]: 4.1M
+                  - generic [ref=f1e165]: Pulls
+                - generic [ref=f1e166]:
+                  - generic [ref=f1e170]: "14"
+                  - generic [ref=f1e171]: Tags
+                - generic "Dec 6, 2024 7:13 PM UTC" [ref=f1e172]:
+                  - generic [ref=f1e175]: Updated
+                  - generic [ref=f1e176]: 1 year ago
+        - listitem [ref=f1e177]:
+          - link "llama2 Llama 2 is a collection of foundation language models ranging from 7B to 70B parameters. 7b 13b 70b 7.5M Pulls 102 Tags Updated 2 years ago" [ref=f1e178] [cursor=pointer]:
+            - /url: /library/llama2
+            - generic "llama2" [ref=f1e179]:
+              - heading "llama2" [level=2] [ref=f1e180]
+              - paragraph [ref=f1e181]: Llama 2 is a collection of foundation language models ranging from 7B to 70B parameters.
+            - generic [ref=f1e182]:
+              - generic [ref=f1e183]:
+                - generic [ref=f1e184]: 7b
+                - generic [ref=f1e185]: 13b
+                - generic [ref=f1e186]: 70b
+              - paragraph [ref=f1e187]:
+                - generic [ref=f1e188]:
+                  - generic [ref=f1e191]: 7.5M
+                  - generic [ref=f1e192]: Pulls
+                - generic [ref=f1e193]:
+                  - generic [ref=f1e197]: "102"
+                  - generic [ref=f1e198]: Tags
+                - generic "Dec 27, 2023 9:21 PM UTC" [ref=f1e199]:
+                  - generic [ref=f1e202]: Updated
+                  - generic [ref=f1e203]: 2 years ago
+        - listitem [ref=f1e204]:
+          - link "llama4 Meta's latest collection of multimodal models. vision tools 16x17b 128x17b 1.8M Pulls 11 Tags Updated 1 year ago" [ref=f1e205] [cursor=pointer]:
+            - /url: /library/llama4
+            - generic "llama4" [ref=f1e206]:
+              - heading "llama4" [level=2] [ref=f1e207]
+              - paragraph [ref=f1e208]: Meta's latest collection of multimodal models.
+            - generic [ref=f1e209]:
+              - generic [ref=f1e210]:
+                - generic [ref=f1e211]: vision
+                - generic [ref=f1e212]: tools
+                - generic [ref=f1e213]: 16x17b
+                - generic [ref=f1e214]: 128x17b
+              - paragraph [ref=f1e215]:
+                - generic [ref=f1e216]:
+                  - generic [ref=f1e219]: 1.8M
+                  - generic [ref=f1e220]: Pulls
+                - generic [ref=f1e221]:
+                  - generic [ref=f1e225]: "11"
+                  - generic [ref=f1e226]: Tags
+                - generic "Jun 16, 2025 8:45 PM UTC" [ref=f1e227]:
+                  - generic [ref=f1e230]: Updated
+                  - generic [ref=f1e231]: 1 year ago
+        - listitem [ref=f1e232]:
+          - link "llama2-uncensored Uncensored Llama 2 model by George Sung and Jarrad Hope. 7b 70b 2.7M Pulls 34 Tags Updated 2 years ago" [ref=f1e233] [cursor=pointer]:
+            - /url: /library/llama2-uncensored
+            - generic "llama2-uncensored" [ref=f1e234]:
+              - heading "llama2-uncensored" [level=2] [ref=f1e235]
+              - paragraph [ref=f1e236]: Uncensored Llama 2 model by George Sung and Jarrad Hope.
+            - generic [ref=f1e237]:
+              - generic [ref=f1e238]:
+                - generic [ref=f1e239]: 7b
+                - generic [ref=f1e240]: 70b
+              - paragraph [ref=f1e241]:
+                - generic [ref=f1e242]:
+                  - generic [ref=f1e245]: 2.7M
+                  - generic [ref=f1e246]: Pulls
+                - generic [ref=f1e247]:
+                  - generic [ref=f1e251]: "34"
+                  - generic [ref=f1e252]: Tags
+                - generic "Oct 29, 2023 2:31 AM UTC" [ref=f1e253]:
+                  - generic [ref=f1e256]: Updated
+                  - generic [ref=f1e257]: 2 years ago
+        - listitem [ref=f1e258]:
+          - link "llama-guard3 Llama Guard 3 is a series of models fine-tuned for content safety classification of LLM inputs and responses. 1b 8b 1M Pulls 33 Tags Updated 1 year ago" [ref=f1e259] [cursor=pointer]:
+            - /url: /library/llama-guard3
+            - generic "llama-guard3" [ref=f1e260]:
+              - heading "llama-guard3" [level=2] [ref=f1e261]
+              - paragraph [ref=f1e262]: Llama Guard 3 is a series of models fine-tuned for content safety classification of LLM inputs and responses.
+            - generic [ref=f1e263]:
+              - generic [ref=f1e264]:
+                - generic [ref=f1e265]: 1b
+                - generic [ref=f1e266]: 8b
+              - paragraph [ref=f1e267]:
+                - generic [ref=f1e268]:
+                  - generic [ref=f1e271]: 1M
+                  - generic [ref=f1e272]: Pulls
+                - generic [ref=f1e273]:
+                  - generic [ref=f1e277]: "33"
+                  - generic [ref=f1e278]: Tags
+                - generic "Oct 11, 2024 3:32 AM UTC" [ref=f1e279]:
+                  - generic [ref=f1e282]: Updated
+                  - generic [ref=f1e283]: 1 year ago
+        - listitem [ref=f1e284]:
+          - link "llama3-groq-tool-use A series of models from Groq that represent a significant advancement in open-source AI capabilities for tool use/function calling. tools 8b 70b 1M Pulls 33 Tags Updated 2 years ago" [ref=f1e285] [cursor=pointer]:
+            - /url: /library/llama3-groq-tool-use
+            - generic "llama3-groq-tool-use" [ref=f1e286]:
+              - heading "llama3-groq-tool-use" [level=2] [ref=f1e287]
+              - paragraph [ref=f1e288]: A series of models from Groq that represent a significant advancement in open-source AI capabilities for tool use/function calling.
+            - generic [ref=f1e289]:
+              - generic [ref=f1e290]:
+                - generic [ref=f1e291]: tools
+                - generic [ref=f1e292]: 8b
+                - generic [ref=f1e293]: 70b
+              - paragraph [ref=f1e294]:
+                - generic [ref=f1e295]:
+                  - generic [ref=f1e298]: 1M
+                  - generic [ref=f1e299]: Pulls
+                - generic [ref=f1e300]:
+                  - generic [ref=f1e304]: "33"
+                  - generic [ref=f1e305]: Tags
+                - generic "Jul 25, 2024 1:15 AM UTC" [ref=f1e306]:
+                  - generic [ref=f1e309]: Updated
+                  - generic [ref=f1e310]: 2 years ago
+        - listitem [ref=f1e311]:
+          - link "llama3-chatqa A model from NVIDIA based on Llama 3 that excels at conversational question answering (QA) and retrieval-augmented generation (RAG). 8b 70b 1M Pulls 35 Tags Updated 2 years ago" [ref=f1e312] [cursor=pointer]:
+            - /url: /library/llama3-chatqa
+            - generic "llama3-chatqa" [ref=f1e313]:
+              - heading "llama3-chatqa" [level=2] [ref=f1e314]
+              - paragraph [ref=f1e315]: A model from NVIDIA based on Llama 3 that excels at conversational question answering (QA) and retrieval-augmented generation (RAG).
+            - generic [ref=f1e316]:
+              - generic [ref=f1e317]:
+                - generic [ref=f1e318]: 8b
+                - generic [ref=f1e319]: 70b
+              - paragraph [ref=f1e320]:
+                - generic [ref=f1e321]:
+                  - generic [ref=f1e324]: 1M
+                  - generic [ref=f1e325]: Pulls
+                - generic [ref=f1e326]:
+                  - generic [ref=f1e330]: "35"
+                  - generic [ref=f1e331]: Tags
+                - generic "May 10, 2024 11:53 PM UTC" [ref=f1e332]:
+                  - generic [ref=f1e335]: Updated
+                  - generic [ref=f1e336]: 2 years ago
+        - listitem [ref=f1e337]:
+          - link "llama3-gradient This model extends LLama-3 8B's context length from 8k to over 1m tokens. 8b 70b 1M Pulls 35 Tags Updated 2 years ago" [ref=f1e338] [cursor=pointer]:
+            - /url: /library/llama3-gradient
+            - generic "llama3-gradient" [ref=f1e339]:
+              - heading "llama3-gradient" [level=2] [ref=f1e340]
+              - paragraph [ref=f1e341]: This model extends LLama-3 8B's context length from 8k to over 1m tokens.
+            - generic [ref=f1e342]:
+              - generic [ref=f1e343]:
+                - generic [ref=f1e344]: 8b
+                - generic [ref=f1e345]: 70b
+              - paragraph [ref=f1e346]:
+                - generic [ref=f1e347]:
+                  - generic [ref=f1e350]: 1M
+                  - generic [ref=f1e351]: Pulls
+                - generic [ref=f1e352]:
+                  - generic [ref=f1e356]: "35"
+                  - generic [ref=f1e357]: Tags
+                - generic "May 5, 2024 1:05 AM UTC" [ref=f1e358]:
+                  - generic [ref=f1e361]: Updated
+                  - generic [ref=f1e362]: 2 years ago
+        - listitem [ref=f1e363]:
+          - link "llama-pro An expansion of Llama 2 that specializes in integrating both general language understanding and domain-specific knowledge, particularly in programming and mathematics. 920.1K Pulls 33 Tags Updated 2 years ago" [ref=f1e364] [cursor=pointer]:
+            - /url: /library/llama-pro
+            - generic "llama-pro" [ref=f1e365]:
+              - heading "llama-pro" [level=2] [ref=f1e366]
+              - paragraph [ref=f1e367]: An expansion of Llama 2 that specializes in integrating both general language understanding and domain-specific knowledge, particularly in programming and mathematics.
+            - paragraph [ref=f1e369]:
+              - generic [ref=f1e370]:
+                - generic [ref=f1e373]: 920.1K
+                - generic [ref=f1e374]: Pulls
+              - generic [ref=f1e375]:
+                - generic [ref=f1e379]: "33"
+                - generic [ref=f1e380]: Tags
+              - generic "Jan 9, 2024 3:30 AM UTC" [ref=f1e381]:
+                - generic [ref=f1e384]: Updated
+                - generic [ref=f1e385]: 2 years ago
+        - listitem [ref=f1e386]:
+          - link "llama2-chinese Llama 2 based model fine tuned to improve Chinese dialogue ability. 7b 13b 1.1M Pulls 35 Tags Updated 2 years ago" [ref=f1e387] [cursor=pointer]:
+            - /url: /library/llama2-chinese
+            - generic "llama2-chinese" [ref=f1e388]:
+              - heading "llama2-chinese" [level=2] [ref=f1e389]
+              - paragraph [ref=f1e390]: Llama 2 based model fine tuned to improve Chinese dialogue ability.
+            - generic [ref=f1e391]:
+              - generic [ref=f1e392]:
+                - generic [ref=f1e393]: 7b
+                - generic [ref=f1e394]: 13b
+              - paragraph [ref=f1e395]:
+                - generic [ref=f1e396]:
+                  - generic [ref=f1e399]: 1.1M
+                  - generic [ref=f1e400]: Pulls
+                - generic [ref=f1e401]:
+                  - generic [ref=f1e405]: "35"
+                  - generic [ref=f1e406]: Tags
+                - generic "Oct 28, 2023 10:17 PM UTC" [ref=f1e407]:
+                  - generic [ref=f1e410]: Updated
+                  - generic [ref=f1e411]: 2 years ago
+        - listitem [ref=f1e412]:
+          - link "dolphin3 Dolphin 3.0 Llama 3.1 8B 🐬 is the next generation of the Dolphin series of instruct-tuned models designed to be the ultimate general purpose local model, enabling coding, math, agentic, function calling, and general use cases. 8b 4.1M Pulls 5 Tags Updated 1 year ago" [ref=f1e413] [cursor=pointer]:
+            - /url: /library/dolphin3
+            - generic "dolphin3" [ref=f1e414]:
+              - heading "dolphin3" [level=2] [ref=f1e415]
+              - paragraph [ref=f1e416]: Dolphin 3.0 Llama 3.1 8B 🐬 is the next generation of the Dolphin series of instruct-tuned models designed to be the ultimate general purpose local model, enabling coding, math, agentic, function calling, and general use cases.
+            - generic [ref=f1e417]:
+              - generic [ref=f1e418]: 8b
+              - paragraph [ref=f1e420]:
+                - generic [ref=f1e421]:
+                  - generic [ref=f1e424]: 4.1M
+                  - generic [ref=f1e425]: Pulls
+                - generic [ref=f1e426]:
+                  - generic [ref=f1e430]: "5"
+                  - generic [ref=f1e431]: Tags
+                - generic "Jan 5, 2025 7:38 PM UTC" [ref=f1e432]:
+                  - generic [ref=f1e435]: Updated
+                  - generic [ref=f1e436]: 1 year ago
+        - listitem [ref=f1e437]:
+          - link "tinyllama The TinyLlama project is an open endeavor to train a compact 1.1B Llama model on 3 trillion tokens. 1.1b 5.7M Pulls 36 Tags Updated 2 years ago" [ref=f1e438] [cursor=pointer]:
+            - /url: /library/tinyllama
+            - generic "tinyllama" [ref=f1e439]:
+              - heading "tinyllama" [level=2] [ref=f1e440]
+              - paragraph [ref=f1e441]: The TinyLlama project is an open endeavor to train a compact 1.1B Llama model on 3 trillion tokens.
+            - generic [ref=f1e442]:
+              - generic [ref=f1e443]: 1.1b
+              - paragraph [ref=f1e445]:
+                - generic [ref=f1e446]:
+                  - generic [ref=f1e449]: 5.7M
+                  - generic [ref=f1e450]: Pulls
+                - generic [ref=f1e451]:
+                  - generic [ref=f1e455]: "36"
+                  - generic [ref=f1e456]: Tags
+                - generic "Jan 1, 2024 2:44 AM UTC" [ref=f1e457]:
+                  - generic [ref=f1e460]: Updated
+                  - generic [ref=f1e461]: 2 years ago
+        - listitem [ref=f1e462]:
+          - link "llava-llama3 A LLaVA model fine-tuned from Llama 3 Instruct with better scores in several benchmarks. vision 8b 2.3M Pulls 4 Tags Updated 2 years ago" [ref=f1e463] [cursor=pointer]:
+            - /url: /library/llava-llama3
+            - generic "llava-llama3" [ref=f1e464]:
+              - heading "llava-llama3" [level=2] [ref=f1e465]
+              - paragraph [ref=f1e466]: A LLaVA model fine-tuned from Llama 3 Instruct with better scores in several benchmarks.
+            - generic [ref=f1e467]:
+              - generic [ref=f1e468]:
+                - generic [ref=f1e469]: vision
+                - generic [ref=f1e470]: 8b
+              - paragraph [ref=f1e471]:
+                - generic [ref=f1e472]:
+                  - generic [ref=f1e475]: 2.3M
+                  - generic [ref=f1e476]: Pulls
+                - generic [ref=f1e477]:
+                  - generic [ref=f1e481]: "4"
+                  - generic [ref=f1e482]: Tags
+                - generic "May 7, 2024 9:01 PM UTC" [ref=f1e483]:
+                  - generic [ref=f1e486]: Updated
+                  - generic [ref=f1e487]: 2 years ago
+        - listitem [ref=f1e488]:
+          - link "dolphin-llama3 Dolphin 2.9 is a new model with 8B and 70B sizes by Eric Hartford based on Llama 3 that has a variety of instruction, conversational, and coding skills. 8b 70b 2.1M Pulls 53 Tags Updated 2 years ago" [ref=f1e489] [cursor=pointer]:
+            - /url: /library/dolphin-llama3
+            - generic "dolphin-llama3" [ref=f1e490]:
+              - heading "dolphin-llama3" [level=2] [ref=f1e491]
+              - paragraph [ref=f1e492]: Dolphin 2.9 is a new model with 8B and 70B sizes by Eric Hartford based on Llama 3 that has a variety of instruction, conversational, and coding skills.
+            - generic [ref=f1e493]:
+              - generic [ref=f1e494]:
+                - generic [ref=f1e495]: 8b
+                - generic [ref=f1e496]: 70b
+              - paragraph [ref=f1e497]:
+                - generic [ref=f1e498]:
+                  - generic [ref=f1e501]: 2.1M
+                  - generic [ref=f1e502]: Pulls
+                - generic [ref=f1e503]:
+                  - generic [ref=f1e507]: "53"
+                  - generic [ref=f1e508]: Tags
+                - generic "May 10, 2024 10:04 PM UTC" [ref=f1e509]:
+                  - generic [ref=f1e512]: Updated
+                  - generic [ref=f1e513]: 2 years ago
+        - listitem [ref=f1e514]:
+          - link "glm4 A strong multi-lingual general language model with competitive performance to Llama 3. 9b 1.2M Pulls 32 Tags Updated 2 years ago" [ref=f1e515] [cursor=pointer]:
+            - /url: /library/glm4
+            - generic "glm4" [ref=f1e516]:
+              - heading "glm4" [level=2] [ref=f1e517]
+              - paragraph [ref=f1e518]: A strong multi-lingual general language model with competitive performance to Llama 3.
+            - generic [ref=f1e519]:
+              - generic [ref=f1e520]: 9b
+              - paragraph [ref=f1e522]:
+                - generic [ref=f1e523]:
+                  - generic [ref=f1e526]: 1.2M
+                  - generic [ref=f1e527]: Pulls
+                - generic [ref=f1e528]:
+                  - generic [ref=f1e532]: "32"
+                  - generic [ref=f1e533]: Tags
+                - generic "Jul 9, 2024 1:21 AM UTC" [ref=f1e534]:
+                  - generic [ref=f1e537]: Updated
+                  - generic [ref=f1e538]: 2 years ago
+        - listitem [ref=f1e539]:
+          - link "stable-code Stable Code 3B is a coding model with instruct and code completion variants on par with models such as Code Llama 7B that are 2.5x larger. 3b 1.1M Pulls 36 Tags Updated 2 years ago" [ref=f1e540] [cursor=pointer]:
+            - /url: /library/stable-code
+            - generic "stable-code" [ref=f1e541]:
+              - heading "stable-code" [level=2] [ref=f1e542]
+              - paragraph [ref=f1e543]: Stable Code 3B is a coding model with instruct and code completion variants on par with models such as Code Llama 7B that are 2.5x larger.
+            - generic [ref=f1e544]:
+              - generic [ref=f1e545]: 3b
+              - paragraph [ref=f1e547]:
+                - generic [ref=f1e548]:
+                  - generic [ref=f1e551]: 1.1M
+                  - generic [ref=f1e552]: Pulls
+                - generic [ref=f1e553]:
+                  - generic [ref=f1e557]: "36"
+                  - generic [ref=f1e558]: Tags
+                - generic "Mar 26, 2024 2:45 AM UTC" [ref=f1e559]:
+                  - generic [ref=f1e562]: Updated
+                  - generic [ref=f1e563]: 2 years ago
+        - listitem
+  - contentinfo [ref=f1e564]:
+    - generic [ref=f1e565]:
+      - generic [ref=f1e566]: © 2026 Ollama
+      - generic [ref=f1e567]:
+        - link "Blog" [ref=f1e568] [cursor=pointer]:
+          - /url: /blog
+        - link "Support" [ref=f1e569] [cursor=pointer]:
+          - /url: mailto:support@ollama.com

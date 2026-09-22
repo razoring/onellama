@@ -604,6 +604,36 @@ export default function Settings() {
           {/* Local Configuration */}
           <div className="relative overflow-hidden rounded-xl bg-white dark:bg-neutral-800">
             <div className="space-y-4 p-4">
+              {/* Appearance */}
+              <Field>
+                <div className="flex items-start space-x-3">
+                  <CogIcon className="mt-1 h-5 w-5 flex-shrink-0 text-black dark:text-neutral-100" />
+                  <div className="w-full">
+                    <Label>Appearance</Label>
+                    <Description>
+                      Choose how the app looks. Automatic follows your system
+                      theme.
+                    </Description>
+                    <div className="mt-3 inline-flex rounded-lg bg-neutral-100 p-1 dark:bg-neutral-800">
+                      {(["dark", "light", "automatic"] as const).map((option) => (
+                        <button
+                          key={option}
+                          type="button"
+                          onClick={() => handleChange("Theme", option)}
+                          className={`rounded-md px-4 py-1.5 text-sm font-medium capitalize transition-colors ${
+                            settings.Theme === option
+                              ? "bg-white text-neutral-900 shadow-xs dark:bg-white/10 dark:text-neutral-100"
+                              : "text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200"
+                          }`}
+                        >
+                          {option}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </Field>
+
               <Field>
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex items-start space-x-3 flex-1">

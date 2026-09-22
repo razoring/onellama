@@ -13,6 +13,7 @@ interface SettingsState {
   onboardingVersion: number;
   thinkEnabled: boolean;
   thinkLevel: string;
+  theme: string;
 }
 
 // Type for partial settings updates
@@ -25,6 +26,7 @@ type SettingsUpdate = Partial<{
   SidebarOpen: boolean;
   LastHomeView: string;
   OnboardingVersion: number;
+  Theme: string;
 }>;
 
 export function useSettings({
@@ -59,6 +61,7 @@ export function useSettings({
       sidebarOpen: settingsData?.settings?.SidebarOpen ?? false,
       lastHomeView: settingsData?.settings?.LastHomeView ?? "chat",
       onboardingVersion: settingsData?.settings?.OnboardingVersion ?? 0,
+      theme: settingsData?.settings?.Theme ?? "automatic",
     }),
     [settingsData?.settings],
   );
