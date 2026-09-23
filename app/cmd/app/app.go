@@ -28,6 +28,7 @@ import (
 	"github.com/ollama/ollama/app/store"
 	"github.com/ollama/ollama/app/tools"
 	"github.com/ollama/ollama/app/mcp"
+	"github.com/ollama/ollama/app/scheduler"
 	"github.com/ollama/ollama/app/ui"
 	"github.com/ollama/ollama/app/updater"
 	"github.com/ollama/ollama/app/version"
@@ -236,6 +237,7 @@ func main() {
 
 	// Initialize tools registry
 	toolRegistry := tools.NewRegistry()
+	toolRegistry.Register(tools.NewSchedulerTool(st))
 	if err := mcp.StartManager(toolRegistry); err != nil {
 		slog.Error("failed to start mcp manager", "error", err)
 	}
@@ -243,6 +245,11 @@ func main() {
 
 	// ctx is the app-level context that will be used to stop the app
 	ctx, cancel := context.WithCancel(context.Background())
+
+	// Start background scheduled tasks runner
+	schedRunner := scheduler.NewRunner(st)
+	schedRunner.Start(ctx)
+	defer schedRunner.Stop()
 
 	// octx is the ollama server context that will be used to stop the ollama server
 	octx, ocancel := context.WithCancel(ctx)

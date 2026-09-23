@@ -302,6 +302,10 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/tools/pending", handle(s.getPendingToolPrompt))
 	mux.Handle("POST /api/v1/tools/respond", handle(s.respondToolPrompt))
 
+	mux.Handle("GET /api/v1/scheduled", handle(s.listScheduledTasks))
+	mux.Handle("PUT /api/v1/scheduled/{id}", handle(s.updateScheduledTask))
+	mux.Handle("DELETE /api/v1/scheduled/{id}", handle(s.deleteScheduledTask))
+
 	mux.Handle("GET /api/v1/models/webview", handle(s.modelsWebviewHandler))
 	mux.Handle("GET /api/v1/models/search", handle(s.modelsSearchHandler))
 
@@ -536,6 +540,71 @@ func (s *Server) listChats(w http.ResponseWriter, r *http.Request) error {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(responses.ChatsResponse{ChatInfos: chatInfos})
+	return nil
+}
+
+func (s *Server) listScheduledTasks(w http.ResponseWriter, r *http.Request) error {
+	tasks, err := s.Store.GetScheduledTasks()
+	if err != nil {
+		return fmt.Errorf("failed to get scheduled tasks: %w", err)
+	}
+	if tasks == nil {
+		tasks = []store.ScheduledTask{}
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{"tasks": tasks})
+	return nil
+}
+
+func (s *Server) updateScheduledTask(w http.ResponseWriter, r *http.Request) error {
+	id := r.PathValue("id")
+	if id == "" {
+		return fmt.Errorf("task ID is required")
+	}
+	existing, err := s.Store.GetScheduledTask(id)
+	if err != nil || existing == nil {
+		w.WriteHeader(http.StatusNotFound)
+		return fmt.Errorf("scheduled task not found")
+	}
+
+	var req struct {
+		Prompt      *string    `json:"prompt"`
+		ScheduledAt *time.Time `json:"scheduled_at"`
+		Model       *string    `json:"model"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return fmt.Errorf("invalid json body: %w", err)
+	}
+
+	if req.Prompt != nil {
+		existing.Prompt = *req.Prompt
+	}
+	if req.ScheduledAt != nil {
+		existing.ScheduledAt = *req.ScheduledAt
+	}
+	if req.Model != nil {
+		existing.Model = *req.Model
+	}
+	existing.UpdatedAt = time.Now()
+
+	if err := s.Store.UpdateScheduledTask(*existing); err != nil {
+		return fmt.Errorf("failed to update scheduled task: %w", err)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(existing)
+	return nil
+}
+
+func (s *Server) deleteScheduledTask(w http.ResponseWriter, r *http.Request) error {
+	id := r.PathValue("id")
+	if id == "" {
+		return fmt.Errorf("task ID is required")
+	}
+	if err := s.Store.DeleteScheduledTask(id); err != nil {
+		return fmt.Errorf("failed to delete scheduled task: %w", err)
+	}
+	w.WriteHeader(http.StatusOK)
 	return nil
 }
 

@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/ollama/ollama/cmd/config"
 	"github.com/ollama/ollama/internal/onboarding"
@@ -94,6 +95,54 @@ func TestStore(t *testing.T) {
 
 		if loaded.LastHomeView != "chat" {
 			t.Fatalf("expected default LastHomeView to be chat, got %q", loaded.LastHomeView)
+		}
+	})
+
+	t.Run("scheduled tasks", func(t *testing.T) {
+		task := ScheduledTask{
+			Prompt:      "Summarize news",
+			Model:       "llama3",
+			ScheduledAt: time.Now().Add(1 * time.Hour),
+		}
+
+		if err := s.CreateScheduledTask(task); err != nil {
+			t.Fatalf("failed to create scheduled task: %v", err)
+		}
+
+		tasks, err := s.GetScheduledTasks()
+		if err != nil {
+			t.Fatalf("failed to get scheduled tasks: %v", err)
+		}
+		if len(tasks) != 1 {
+			t.Fatalf("expected 1 task, got %d", len(tasks))
+		}
+		if tasks[0].Prompt != "Summarize news" {
+			t.Fatalf("expected prompt 'Summarize news', got %q", tasks[0].Prompt)
+		}
+
+		tasks[0].Status = "completed"
+		if err := s.UpdateScheduledTask(tasks[0]); err != nil {
+			t.Fatalf("failed to update scheduled task: %v", err)
+		}
+
+		updated, err := s.GetScheduledTask(tasks[0].ID)
+		if err != nil || updated == nil {
+			t.Fatalf("failed to get updated scheduled task: %v", err)
+		}
+		if updated.Status != "completed" {
+			t.Fatalf("expected status 'completed', got %q", updated.Status)
+		}
+
+		if err := s.DeleteScheduledTask(tasks[0].ID); err != nil {
+			t.Fatalf("failed to delete scheduled task: %v", err)
+		}
+
+		tasks, err = s.GetScheduledTasks()
+		if err != nil {
+			t.Fatalf("failed to get scheduled tasks after delete: %v", err)
+		}
+		if len(tasks) != 0 {
+			t.Fatalf("expected 0 tasks after delete, got %d", len(tasks))
 		}
 	})
 

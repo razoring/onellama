@@ -32,6 +32,18 @@ type User struct {
 	CachedAt time.Time `json:"cachedAt"`
 }
 
+type ScheduledTask struct {
+	ID          string    `json:"id"`
+	Prompt      string    `json:"prompt"`
+	Model       string    `json:"model"`
+	ScheduledAt time.Time `json:"scheduled_at"`
+	Status      string    `json:"status"` // "pending", "running", "completed", "failed"
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+	LastError   string    `json:"last_error,omitempty"`
+	ChatID      string    `json:"chat_id,omitempty"`
+}
+
 type Message struct {
 	Role              string           `json:"role"`
 	Content           string           `json:"content"`
@@ -593,6 +605,48 @@ func (s *Store) ClearUser() error {
 	}
 
 	return s.db.clearUser()
+}
+
+func (s *Store) CreateScheduledTask(task ScheduledTask) error {
+	if err := s.ensureDB(); err != nil {
+		return err
+	}
+	return s.db.createScheduledTask(task)
+}
+
+func (s *Store) GetScheduledTasks() ([]ScheduledTask, error) {
+	if err := s.ensureDB(); err != nil {
+		return nil, err
+	}
+	return s.db.getScheduledTasks()
+}
+
+func (s *Store) GetScheduledTask(id string) (*ScheduledTask, error) {
+	if err := s.ensureDB(); err != nil {
+		return nil, err
+	}
+	return s.db.getScheduledTask(id)
+}
+
+func (s *Store) UpdateScheduledTask(task ScheduledTask) error {
+	if err := s.ensureDB(); err != nil {
+		return err
+	}
+	return s.db.updateScheduledTask(task)
+}
+
+func (s *Store) DeleteScheduledTask(id string) error {
+	if err := s.ensureDB(); err != nil {
+		return err
+	}
+	return s.db.deleteScheduledTask(id)
+}
+
+func (s *Store) GetPendingScheduledTasks(now time.Time) ([]ScheduledTask, error) {
+	if err := s.ensureDB(); err != nil {
+		return nil, err
+	}
+	return s.db.getPendingScheduledTasks(now)
 }
 
 func (s *Store) Close() error {

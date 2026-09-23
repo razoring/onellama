@@ -1,8 +1,8 @@
 import { Link } from "@/components/ui/link";
 import { ChatIcon } from "@/components/ChatIcon";
-import { Cog6ToothIcon, CpuChipIcon, RectangleGroupIcon, Square3Stack3DIcon } from "@heroicons/react/24/outline";
+import { ClockIcon, Cog6ToothIcon, CpuChipIcon, RectangleGroupIcon, Square3Stack3DIcon } from "@heroicons/react/24/outline";
 
-type AppSection = "apps" | "chat" | "settings" | "mcp" | "models";
+type AppSection = "apps" | "chat" | "settings" | "mcp" | "models" | "scheduled";
 
 export function AppTopNavigation({ current }: { current: AppSection }) {
   const itemClass = (section: AppSection) =>
@@ -28,6 +28,10 @@ export function AppTopNavigation({ current }: { current: AppSection }) {
       <Link to="/mcp" className={itemClass("mcp")} draggable={false}>
         <CpuChipIcon className="h-5 w-5 stroke-current" />
         <span className="truncate">MCPs</span>
+      </Link>
+      <Link to="/scheduled" className={itemClass("scheduled")} draggable={false}>
+        <ClockIcon className="h-5 w-5 stroke-current" />
+        <span className="truncate">Scheduled</span>
       </Link>
     </div>
   );

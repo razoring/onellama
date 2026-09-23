@@ -9,12 +9,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	_ "github.com/mattn/go-sqlite3"
 )
 
 // currentSchemaVersion defines the current database schema version.
 // Increment this when making schema changes that require migrations.
-const currentSchemaVersion = 21
+const currentSchemaVersion = 22
 
 // database wraps the SQLite connection.
 // SQLite handles its own locking for concurrent access:
@@ -91,7 +92,7 @@ func (db *database) init() error {
 		auto_update_enabled BOOLEAN NOT NULL DEFAULT 1,
 		claude_desktop_used BOOLEAN NOT NULL DEFAULT 0,
 		codex_desktop_used BOOLEAN NOT NULL DEFAULT 0,
-		output_length INTEGER NOT NULL DEFAULT 0,
+		output_length INTEGER NOT NULL DEFAULT 4096,
 		theme TEXT NOT NULL DEFAULT 'automatic',
 		schema_version INTEGER NOT NULL DEFAULT %d
 	);
@@ -154,6 +155,21 @@ func (db *database) init() error {
 		plan TEXT NOT NULL DEFAULT '',
 		cached_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 	);
+
+	CREATE TABLE IF NOT EXISTS scheduled_tasks (
+		id TEXT PRIMARY KEY,
+		prompt TEXT NOT NULL,
+		model TEXT NOT NULL,
+		scheduled_at TIMESTAMP NOT NULL,
+		status TEXT NOT NULL DEFAULT 'pending',
+		created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+		updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+		last_error TEXT,
+		chat_id TEXT
+	);
+
+	CREATE INDEX IF NOT EXISTS idx_scheduled_tasks_scheduled_at ON scheduled_tasks(scheduled_at);
+	CREATE INDEX IF NOT EXISTS idx_scheduled_tasks_status ON scheduled_tasks(status);
 	`, currentSchemaVersion)
 
 	_, err := db.conn.Exec(schema)
@@ -303,6 +319,11 @@ func (db *database) migrate() error {
 				return fmt.Errorf("migrate v20 to v21: %w", err)
 			}
 			version = 21
+		case 21:
+			if err := db.migrateV21ToV22(); err != nil {
+				return fmt.Errorf("migrate v21 to v22: %w", err)
+			}
+			version = 22
 		default:
 			// If we have a version we don't recognize, just set it to current
 			// This might happen during development
@@ -1452,4 +1473,137 @@ func (db *database) clearUser() error {
 		return fmt.Errorf("clear user: %w", err)
 	}
 	return nil
+}
+
+func (db *database) migrateV21ToV22() error {
+	_, err := db.conn.Exec(`
+		CREATE TABLE IF NOT EXISTS scheduled_tasks (
+			id TEXT PRIMARY KEY,
+			prompt TEXT NOT NULL,
+			model TEXT NOT NULL,
+			scheduled_at TIMESTAMP NOT NULL,
+			status TEXT NOT NULL DEFAULT 'pending',
+			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			last_error TEXT,
+			chat_id TEXT
+		);
+		CREATE INDEX IF NOT EXISTS idx_scheduled_tasks_scheduled_at ON scheduled_tasks(scheduled_at);
+		CREATE INDEX IF NOT EXISTS idx_scheduled_tasks_status ON scheduled_tasks(status);
+	`)
+	if err != nil {
+		return fmt.Errorf("create scheduled_tasks table: %w", err)
+	}
+
+	_, err = db.conn.Exec(`UPDATE settings SET schema_version = 22;`)
+	if err != nil {
+		return fmt.Errorf("update schema version: %w", err)
+	}
+
+	return nil
+}
+
+func (db *database) createScheduledTask(task ScheduledTask) error {
+	now := time.Now()
+	if task.ID == "" {
+		task.ID = uuid.New().String()
+	}
+	if task.Status == "" {
+		task.Status = "pending"
+	}
+	if task.CreatedAt.IsZero() {
+		task.CreatedAt = now
+	}
+	task.UpdatedAt = now
+
+	_, err := db.conn.Exec(`
+		INSERT INTO scheduled_tasks (id, prompt, model, scheduled_at, status, created_at, updated_at, last_error, chat_id)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, task.ID, task.Prompt, task.Model, task.ScheduledAt, task.Status, task.CreatedAt, task.UpdatedAt, task.LastError, task.ChatID)
+	if err != nil {
+		return fmt.Errorf("create scheduled task: %w", err)
+	}
+	return nil
+}
+
+func (db *database) getScheduledTasks() ([]ScheduledTask, error) {
+	rows, err := db.conn.Query(`
+		SELECT id, prompt, model, scheduled_at, status, created_at, updated_at, COALESCE(last_error, ''), COALESCE(chat_id, '')
+		FROM scheduled_tasks
+		ORDER BY scheduled_at ASC
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("get scheduled tasks: %w", err)
+	}
+	defer rows.Close()
+
+	tasks := make([]ScheduledTask, 0)
+	for rows.Next() {
+		var t ScheduledTask
+		if err := rows.Scan(&t.ID, &t.Prompt, &t.Model, &t.ScheduledAt, &t.Status, &t.CreatedAt, &t.UpdatedAt, &t.LastError, &t.ChatID); err != nil {
+			return nil, fmt.Errorf("scan scheduled task: %w", err)
+		}
+		tasks = append(tasks, t)
+	}
+	return tasks, nil
+}
+
+func (db *database) getScheduledTask(id string) (*ScheduledTask, error) {
+	var t ScheduledTask
+	err := db.conn.QueryRow(`
+		SELECT id, prompt, model, scheduled_at, status, created_at, updated_at, COALESCE(last_error, ''), COALESCE(chat_id, '')
+		FROM scheduled_tasks
+		WHERE id = ?
+	`, id).Scan(&t.ID, &t.Prompt, &t.Model, &t.ScheduledAt, &t.Status, &t.CreatedAt, &t.UpdatedAt, &t.LastError, &t.ChatID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("get scheduled task: %w", err)
+	}
+	return &t, nil
+}
+
+func (db *database) updateScheduledTask(task ScheduledTask) error {
+	task.UpdatedAt = time.Now()
+	_, err := db.conn.Exec(`
+		UPDATE scheduled_tasks
+		SET prompt = ?, model = ?, scheduled_at = ?, status = ?, updated_at = ?, last_error = ?, chat_id = ?
+		WHERE id = ?
+	`, task.Prompt, task.Model, task.ScheduledAt, task.Status, task.UpdatedAt, task.LastError, task.ChatID, task.ID)
+	if err != nil {
+		return fmt.Errorf("update scheduled task: %w", err)
+	}
+	return nil
+}
+
+func (db *database) deleteScheduledTask(id string) error {
+	_, err := db.conn.Exec("DELETE FROM scheduled_tasks WHERE id = ?", id)
+	if err != nil {
+		return fmt.Errorf("delete scheduled task: %w", err)
+	}
+	return nil
+}
+
+func (db *database) getPendingScheduledTasks(now time.Time) ([]ScheduledTask, error) {
+	rows, err := db.conn.Query(`
+		SELECT id, prompt, model, scheduled_at, status, created_at, updated_at, COALESCE(last_error, ''), COALESCE(chat_id, '')
+		FROM scheduled_tasks
+		WHERE status = 'pending' AND scheduled_at <= ?
+		ORDER BY scheduled_at ASC
+	`, now)
+	if err != nil {
+		return nil, fmt.Errorf("get pending scheduled tasks: %w", err)
+	}
+	defer rows.Close()
+
+	tasks := make([]ScheduledTask, 0)
+	for rows.Next() {
+		var t ScheduledTask
+		if err := rows.Scan(&t.ID, &t.Prompt, &t.Model, &t.ScheduledAt, &t.Status, &t.CreatedAt, &t.UpdatedAt, &t.LastError, &t.ChatID); err != nil {
+			return nil, fmt.Errorf("scan pending scheduled task: %w", err)
+		}
+		tasks = append(tasks, t)
+	}
+	return tasks, nil
 }
