@@ -14,6 +14,7 @@ import {
   useShouldShowStaleDisplay,
   useDismissStaleModel,
 } from "@/hooks/useChats";
+import { useSelectedModel } from "@/hooks/useSelectedModel";
 import { useHealth } from "@/hooks/useHealth";
 import { useMessageAutoscroll } from "@/hooks/useMessageAutoscroll";
 import {
@@ -25,7 +26,6 @@ import {
 } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { useSelectedModel } from "@/hooks/useSelectedModel";
 import { useUser } from "@/hooks/useUser";
 import { useHasVisionCapability } from "@/hooks/useModelCapabilities";
 import { Message } from "@/gotypes";
@@ -91,8 +91,8 @@ export default function Chat({ chatId }: { chatId: string }) {
   const messages = allMessages;
   const isStreaming = useIsStreaming(chatId);
   const isWaitingForLoad = useIsWaitingForLoad(chatId);
-  const downloadProgress = useDownloadProgress(chatId);
-  const isDownloadingModel = downloadProgress && !downloadProgress.done;
+  const activeModelDownload = useDownloadProgress(selectedModel?.model || "");
+  const isDownloadingModel = !!(activeModelDownload && typeof activeModelDownload === 'object' && 'event' in activeModelDownload && !activeModelDownload.event.done);
   const isDisabled = !isHealthy;
 
   // Clear editing state when navigating to a different chat
@@ -229,7 +229,6 @@ export default function Chat({ chatId }: { chatId: string }) {
               spacerHeight={spacerHeight}
               isWaitingForLoad={isWaitingForLoad}
               isStreaming={isStreaming}
-              downloadProgress={downloadProgress}
               onEditMessage={(content: string, index: number) => {
                 handleEditMessage(content, index);
               }}

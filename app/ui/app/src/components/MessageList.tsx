@@ -1,7 +1,6 @@
-import { Message as MessageType, DownloadEvent, ErrorEvent } from "@/gotypes";
+import { Message as MessageType, ErrorEvent } from "@/gotypes";
 import React from "react";
 import Message from "./Message";
-import Downloading from "./Downloading";
 import { ErrorMessage } from "./ErrorMessage";
 
 export default function MessageList({
@@ -9,7 +8,6 @@ export default function MessageList({
   spacerHeight,
   isWaitingForLoad,
   isStreaming,
-  downloadProgress,
   onEditMessage,
   editingMessageIndex,
   error,
@@ -19,21 +17,17 @@ export default function MessageList({
   spacerHeight: number;
   isWaitingForLoad?: boolean;
   isStreaming: boolean;
-  downloadProgress?: DownloadEvent;
   onEditMessage?: (content: string, index: number) => void | Promise<void>;
   editingMessageIndex?: number;
   error?: ErrorEvent | null;
   browserToolResult?: any;
 }) {
   const [showDots, setShowDots] = React.useState(false);
-  const isDownloadingModel = downloadProgress && !downloadProgress.done;
-  const shouldShowDownload = messages.length > 0;
 
   React.useEffect(() => {
     let timer: number;
     if (
       (isStreaming || isWaitingForLoad) &&
-      !isDownloadingModel &&
       messages.length > 0 &&
       messages[messages.length - 1]?.role === "user"
     ) {
@@ -45,7 +39,7 @@ export default function MessageList({
     }
 
     return () => window.clearTimeout(timer);
-  }, [isStreaming, isWaitingForLoad, isDownloadingModel, messages]);
+  }, [isStreaming, isWaitingForLoad, messages]);
 
   const lastIdx = messages.length - 1;
 
@@ -136,29 +130,6 @@ export default function MessageList({
             }}
           />
         </div>
-      )}
-
-      {/* Downloading model */}
-      {/* Only show for models larger than 1KiB */}
-      {downloadProgress?.total && downloadProgress.total > 1024 && (
-        <section
-          className={`
-          transition-all ease-out
-          ${shouldShowDownload ? "duration-300" : "duration-0"}
-          ${
-            downloadProgress
-              ? downloadProgress.done
-                ? "opacity-0 -translate-y-8"
-                : "opacity-100 translate-y-0"
-              : "opacity-0 translate-y-4 pointer-events-none"
-          }
-        `}
-        >
-          <Downloading
-            completed={downloadProgress?.completed || 0}
-            total={downloadProgress?.total || 0}
-          />
-        </section>
       )}
 
       {/* Dynamic spacer to allow scrolling the last message to the top of the container */}

@@ -11,7 +11,7 @@ import { useSelectedModel } from "@/hooks/useSelectedModel";
 import { useCloudStatus } from "@/hooks/useCloudStatus";
 import { useQueryClient } from "@tanstack/react-query";
 import { getModelUpstreamInfo } from "@/api";
-import { ArrowDownTrayIcon } from "@heroicons/react/24/outline";
+import { ArrowDownTrayIcon, ArrowPathIcon } from "@heroicons/react/24/outline";
 
 const stalenessCheckCache = new Map<string, number>();
 
@@ -30,6 +30,7 @@ export const ModelPicker = forwardRef<
 ): JSX.Element {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const { selectedModel, setSettings, models, loading } = useSelectedModel(
     chatId,
     searchQuery,
@@ -185,7 +186,7 @@ export const ModelPicker = forwardRef<
       </button>
       {isOpen && (
         <div className="absolute right-0 text-[15px] bottom-full mb-2 z-50 w-64 rounded-2xl overflow-hidden bg-white border border-neutral-100 text-neutral-800 shadow-xl shadow-black/5 backdrop-blur-lg dark:border-neutral-600/40 dark:bg-neutral-800 dark:text-white dark:ring-black/20">
-          <div className="px-1 py-2 border-b border-neutral-100 dark:border-neutral-700">
+          <div className="px-2 py-2 border-b border-neutral-100 dark:border-neutral-700 flex items-center justify-between gap-1">
             <input
               ref={searchInputRef}
               type="text"
@@ -195,6 +196,19 @@ export const ModelPicker = forwardRef<
               autoCorrect="off"
               className="w-full px-2 py-0.5 bg-transparent border-none border-neutral-200 rounded-md outline-none focus:border-neutral-400 dark:border-neutral-600 dark:focus:border-neutral-400"
             />
+            <button
+              type="button"
+              title="Refresh models"
+              onClick={async (e) => {
+                e.stopPropagation();
+                setIsRefreshing(true);
+                await queryClient.invalidateQueries({ queryKey: ["models"] });
+                setTimeout(() => setIsRefreshing(false), 500);
+              }}
+              className="p-1.5 rounded-lg text-neutral-500 hover:text-neutral-800 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:text-neutral-100 dark:hover:bg-neutral-700 transition-colors cursor-pointer shrink-0"
+            >
+              <ArrowPathIcon className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
+            </button>
           </div>
 
           <ModelList

@@ -103,9 +103,9 @@ export const useIsStreaming = (chatId: string) => {
   return streamingChatIds.has(chatId);
 };
 
-export const useDownloadProgress = (chatId: string) => {
+export const useDownloadProgress = (modelName?: string) => {
   const { downloadProgress } = useStreamingContext();
-  return downloadProgress.get(chatId);
+  return modelName ? downloadProgress.get(modelName) : downloadProgress;
 };
 
 export const useIsModelStale = (modelName: string) => {
@@ -213,11 +213,6 @@ export const useSendMessage = (chatId: string) => {
       return newSet;
     });
     setAbortControllers((prev) => {
-      const newMap = new Map(prev);
-      newMap.delete(id);
-      return newMap;
-    });
-    setDownloadProgress((prev) => {
       const newMap = new Map(prev);
       newMap.delete(id);
       return newMap;
@@ -589,9 +584,14 @@ export const useSendMessage = (chatId: string) => {
             break;
           }
           case "download": {
+            const modelKey = effectiveModel.model;
             setDownloadProgress((prev) => {
               const newMap = new Map(prev);
-              newMap.set(currentChatId, event);
+              const existing = newMap.get(modelKey);
+              newMap.set(modelKey, {
+                event: event,
+                timestamp: existing?.timestamp ?? Date.now(),
+              });
               return newMap;
             });
 
@@ -635,7 +635,7 @@ export const useSendMessage = (chatId: string) => {
             });
             setDownloadProgress((prev) => {
               const newMap = new Map(prev);
-              newMap.delete(currentChatId);
+              newMap.delete(effectiveModel.model);
               return newMap;
             });
 
@@ -658,7 +658,7 @@ export const useSendMessage = (chatId: string) => {
             // Clear download progress when streaming is done
             setDownloadProgress((prev) => {
               const newMap = new Map(prev);
-              newMap.delete(currentChatId);
+              newMap.delete(effectiveModel.model);
               return newMap;
             });
             // Ensure chat is fresh for next fetch
@@ -735,7 +735,6 @@ export const useCancelMessage = () => {
     abortControllers,
     setStreamingChatIds,
     setAbortControllers,
-    setDownloadProgress,
   } = useStreamingContext();
 
   return (chatId: string) => {
@@ -746,11 +745,6 @@ export const useCancelMessage = () => {
         (prev) => new Set([...prev].filter((id) => id !== chatId)),
       );
       setAbortControllers((prev) => {
-        const newMap = new Map(prev);
-        newMap.delete(chatId);
-        return newMap;
-      });
-      setDownloadProgress((prev) => {
         const newMap = new Map(prev);
         newMap.delete(chatId);
         return newMap;

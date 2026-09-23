@@ -9,6 +9,11 @@ import {
 } from "react";
 import { DownloadEvent } from "@/gotypes";
 
+export interface DownloadProgressInfo {
+  event: DownloadEvent;
+  timestamp: number;
+}
+
 interface StreamingContextType {
   streamingChatIds: Set<string>;
   setStreamingChatIds: Dispatch<SetStateAction<Set<string>>>;
@@ -16,8 +21,8 @@ interface StreamingContextType {
   setLoadingChats: Dispatch<SetStateAction<Set<string>>>;
   abortControllers: Map<string, AbortController>;
   setAbortControllers: Dispatch<SetStateAction<Map<string, AbortController>>>;
-  downloadProgress: Map<string, DownloadEvent>;
-  setDownloadProgress: Dispatch<SetStateAction<Map<string, DownloadEvent>>>;
+  downloadProgress: Map<string, DownloadProgressInfo>;
+  setDownloadProgress: Dispatch<SetStateAction<Map<string, DownloadProgressInfo>>>;
 }
 
 const StreamingContext = createContext<StreamingContextType | undefined>(
@@ -33,7 +38,7 @@ export function StreamingProvider({ children }: { children: ReactNode }) {
     Map<string, AbortController>
   >(new Map());
   const [downloadProgress, setDownloadProgress] = useState<
-    Map<string, DownloadEvent>
+    Map<string, DownloadProgressInfo>
   >(new Map());
 
   const contextValue = useMemo(

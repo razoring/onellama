@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"runtime"
 	"strings"
 
 	"github.com/ollama/ollama/api"
@@ -242,6 +243,10 @@ select:hover, option { background-color:#1c1c1c !important; color:#e5e5e5 !impor
 				footer { display: none !important; }
 				header nav > a[href="/"] img, header a[href="/"] img { width:56px !important; height:56px !important; }
 				body { margin-top: 0 !important; padding-top: 0 !important; }
+				.ol-installed-btn .ol-trash-icon { display: none !important; }
+				.ol-installed-btn .ol-check-icon { display: block !important; }
+				.ol-installed-btn:hover .ol-trash-icon { display: block !important; }
+				.ol-installed-btn:hover .ol-check-icon { display: none !important; }
 			</style>
 %[1]s
 			<script>
@@ -402,8 +407,60 @@ select:hover, option { background-color:#1c1c1c !important; color:#e5e5e5 !impor
 							}
 						},
 
+						loadInstalled: function() {
+							var self = this;
+							return fetch(window.location.origin + '/api/tags', { headers: { 'Accept': 'application/json' } })
+								.then(function(r) { if (!r.ok) throw new Error('http ' + r.status); return r.json(); })
+								.then(function(data) {
+									var models = (data && data.models) || [];
+									var map = {};
+									self.names = {};
+									for (var i = 0; i < models.length; i++) {
+										var mName = models[i].name || models[i].model || '';
+										var b = self.normalize(mName);
+										if (b) {
+											map[b] = true;
+											if (!self.names[b]) self.names[b] = mName;
+										}
+									}
+									self.slugs = Object.keys(map);
+									return self.slugs;
+								})
+								.catch(function() { self.slugs = []; self.names = {}; return []; });
+						},
+
+						liWrap: function(node) {
+							var li = document.createElement('li');
+							li.className = 'flex items-baseline border-b border-neutral-200 py-6';
+							li.setAttribute('data-ol-installed', '1');
+							li.appendChild(node);
+							return li;
+						},
+
+						fallbackLi: function(base) {
+							var li = document.createElement('li');
+							li.className = 'flex items-baseline border-b border-neutral-200 py-6';
+							li.setAttribute('data-ol-installed', '1');
+							var a = document.createElement('a');
+							a.href = '/local/library/' + encodeURIComponent(base);
+							a.className = 'group w-full';
+							var div = document.createElement('div');
+							div.className = 'flex flex-col w-full';
+							var h = document.createElement('h2');
+							h.className = 'truncate text-xl font-medium underline-offset-2 group-hover:underline md:text-2xl';
+							h.textContent = this.names[base] || base;
+							var p = document.createElement('p');
+							p.className = 'text-sm text-neutral-500';
+							p.textContent = 'Available Locally. Not available in the ollama library.';
+							div.appendChild(h);
+							div.appendChild(p);
+							a.appendChild(div);
+							li.appendChild(a);
+							return li;
+						},
+
 						cards: function(root) {
-							return Array.prototype.slice.call((root || document).querySelectorAll('#searchresults a[href^="/library/"]'));
+							return Array.prototype.slice.call((root || document).querySelectorAll('#searchresults a[href*="/library/"], a[href*="/library/"]'));
 						},
 
 						renderedCards: function() {
@@ -438,56 +495,6 @@ select:hover, option { background-color:#1c1c1c !important; color:#e5e5e5 !impor
 							return el ? (el.value || '') : '';
 						},
 
-						loadInstalled: function() {
-							var self = this;
-							return fetch(window.location.origin + '/api/tags', { headers: { 'Accept': 'application/json' } })
-								.then(function(r) { if (!r.ok) throw new Error('http ' + r.status); return r.json(); })
-								.then(function(data) {
-									var models = (data && data.models) || [];
-									var map = {};
-									self.names = {};
-									for (var i = 0; i < models.length; i++) {
-										var b = self.normalize(models[i].name);
-										if (b) {
-											map[b] = true;
-											if (!self.names[b]) self.names[b] = models[i].name;
-										}
-									}
-									self.slugs = Object.keys(map);
-								})
-								.catch(function() { self.slugs = []; self.names = {}; });
-						},
-
-						liWrap: function(node) {
-							var li = document.createElement('li');
-							li.className = 'flex items-baseline border-b border-neutral-200 py-6';
-							li.setAttribute('data-ol-installed', '1');
-							li.appendChild(node);
-							return li;
-						},
-
-fallbackLi: function(base) {
-							var li = document.createElement('li');
-							li.className = 'flex items-baseline border-b border-neutral-200 py-6';
-							li.setAttribute('data-ol-installed', '1');
-							var a = document.createElement('a');
-							a.href = '/local/library/' + encodeURIComponent(base);
-							a.className = 'group w-full';
-							var div = document.createElement('div');
-							div.className = 'flex flex-col w-full';
-							var h = document.createElement('h2');
-							h.className = 'truncate text-xl font-medium underline-offset-2 group-hover:underline md:text-2xl';
-							h.textContent = this.names[base] || base;
-							var p = document.createElement('p');
-							p.className = 'text-sm text-neutral-500';
-							p.textContent = 'Available Locally. Not available in the ollama library.';
-							div.appendChild(h);
-							div.appendChild(p);
-							a.appendChild(div);
-							li.appendChild(a);
-							return li;
-						},
-
 						fetchCards: function() {
 							var self = this;
 							var slugs = [];
@@ -507,7 +514,7 @@ fallbackLi: function(base) {
 									var lis = self.cards(dom);
 									for (var i = 0; i < lis.length; i++) {
 										var href = lis[i].getAttribute('href') || '';
-										var m = href.match(/^\/library\/([^?#]+)/);
+										var m = href.match(/\/library\/([^?#]+)/);
 										if (!m || !self.matches(m[1])) continue;
 										var b2 = self.normalize(m[1]);
 										if (b2) found[b2] = true;
@@ -587,10 +594,15 @@ fallbackLi: function(base) {
 							ing.style.cssText = 'text-align:center;color:#6b7280;padding:48px 16px;font-size:14px;';
 							var results = document.getElementById('searchresults');
 							if (results) results.appendChild(ing);
-							this.fetchCards().then(function(cards) {
+
+							this.loadInstalled().then(function() {
+								return self.fetchCards();
+							}).then(function(cards) {
 								if (!self.enabled()) return;
 								self.rendered = cards;
 								if (cards.length) self.render(); else self.showHint('No models are installed.');
+							}).catch(function() {
+								if (self.enabled()) self.showHint('Failed to load installed models.');
 							});
 						},
 
@@ -630,9 +642,412 @@ fallbackLi: function(base) {
 					document.addEventListener('DOMContentLoaded', function() { installed.ensureOptions(); applyModelHeader(); });
 
 					installed.loadInstalled();
+
+					// ---------- onellama: Download column injector for model tables ----------
+					var CURRENT_OS = "%[3]s";
+					var dlColumn = {
+						installedMap: {},
+						pullingMap: {},
+						deletingMap: {},
+
+						loadInstalled: function() {
+							var self = this;
+							return fetch(window.location.origin + '/api/tags', { headers: { 'Accept': 'application/json' } })
+								.then(function(r) { if (!r.ok) throw new Error('http ' + r.status); return r.json(); })
+								.then(function(data) {
+									var models = (data && data.models) || [];
+									self.installedMap = {};
+									for (var i = 0; i < models.length; i++) {
+										var full = models[i].name || models[i].model || '';
+										var norm = self.normalizeTag(full);
+										if (norm) self.installedMap[norm] = true;
+									}
+									try {
+										for (var k = 0; k < localStorage.length; k++) {
+											var key = localStorage.key(k);
+											if (!key) continue;
+											if (key.indexOf('onellama_pulling_') === 0) {
+												var pTag = key.slice(17);
+												if (self.isInstalled(pTag)) {
+													localStorage.removeItem(key);
+													delete self.pullingMap[pTag];
+												}
+											} else if (key.indexOf('onellama_deleting_') === 0) {
+												var dTag = key.slice(18);
+												if (!self.isInstalled(dTag)) {
+													localStorage.removeItem(key);
+													delete self.deletingMap[dTag];
+												}
+											}
+										}
+									} catch (e) {}
+									return self.installedMap;
+								})
+								.catch(function() { self.installedMap = {}; return {}; });
+						},
+
+						normalizeTag: function(tag) {
+							if (!tag) return '';
+							var s = String(tag).trim().toLowerCase();
+							s = s.replace(/^ollama\s+(run|pull)\s+/i, '').trim();
+							if (s.indexOf('/library/') === 0) s = s.slice(9);
+							if (s.indexOf('/') === 0) s = s.slice(1);
+							var slashIdx = s.lastIndexOf('/');
+							if (slashIdx !== -1 && (s.indexOf('localhost') !== -1 || s.indexOf('ollama.com') !== -1)) {
+								s = s.slice(slashIdx + 1);
+							}
+							return s;
+						},
+
+						isInstalled: function(tag) {
+							var norm = this.normalizeTag(tag);
+							if (!norm) return false;
+							if (this.installedMap[norm]) return true;
+							if (norm.indexOf(':') === -1) {
+								if (this.installedMap[norm + ':latest']) return true;
+							} else if (norm.indexOf(':latest') !== -1) {
+								var base = norm.slice(0, norm.indexOf(':latest'));
+								if (this.installedMap[base]) return true;
+							}
+							return false;
+						},
+
+						isPullingTag: function(tag) {
+							var norm = this.normalizeTag(tag);
+							if (!tag) return false;
+							if (this.pullingMap[tag] || (norm && this.pullingMap[norm])) return true;
+							try {
+								return localStorage.getItem('onellama_pulling_' + tag) === '1' || (norm && localStorage.getItem('onellama_pulling_' + norm) === '1');
+							} catch (e) { return false; }
+						},
+
+						isDeletingTag: function(tag) {
+							var norm = this.normalizeTag(tag);
+							if (!tag) return false;
+							if (this.deletingMap[tag] || (norm && this.deletingMap[norm])) return true;
+							try {
+								return localStorage.getItem('onellama_deleting_' + tag) === '1' || (norm && localStorage.getItem('onellama_deleting_' + norm) === '1');
+							} catch (e) { return false; }
+						},
+
+						isMLX: function(tag) {
+							if (!tag) return false;
+							return String(tag).toLowerCase().indexOf('mlx') !== -1;
+						},
+
+						isCloud: function(tag, rowElem) {
+							if (!tag) return false;
+							var s = String(tag).toLowerCase();
+							if (s.endsWith(':cloud') || s.indexOf('cloud') !== -1) return true;
+							if (rowElem) {
+								var txt = (rowElem.textContent || '').toLowerCase();
+								if (txt.indexOf('cloud') !== -1) {
+									var chips = rowElem.querySelectorAll('.chip, span');
+									for (var i = 0; i < chips.length; i++) {
+										if (chips[i].textContent.trim().toLowerCase() === 'cloud') return true;
+									}
+								}
+							}
+							return false;
+						},
+
+						isDownloadable: function(tag, rowElem, isLocalUnlisted) {
+							if (!tag) return false;
+							if (this.isMLX(tag) && (CURRENT_OS === 'windows' || CURRENT_OS === 'linux')) return false;
+							if (this.isCloud(tag, rowElem)) return false;
+							if (isLocalUnlisted) return false;
+							return true;
+						},
+
+						pullModel: function(tag) {
+							var self = this;
+							var norm = self.normalizeTag(tag);
+							self.pullingMap[tag] = true;
+							if (norm) self.pullingMap[norm] = true;
+							try {
+								localStorage.setItem('onellama_pulling_' + tag, '1');
+								if (norm) localStorage.setItem('onellama_pulling_' + norm, '1');
+							} catch (e) {}
+							self.updateUI();
+							
+							window.parent.postMessage({ type: 'pullModel', tag: tag }, '*');
+						},
+
+						deleteModel: function(tag) {
+							var self = this;
+							var norm = self.normalizeTag(tag);
+							self.deletingMap[tag] = true;
+							if (norm) self.deletingMap[norm] = true;
+							try {
+								localStorage.setItem('onellama_deleting_' + tag, '1');
+								if (norm) localStorage.setItem('onellama_deleting_' + norm, '1');
+							} catch (e) {}
+							self.updateUI();
+							fetch(window.location.origin + '/api/delete', {
+								method: 'DELETE',
+								headers: { 'Content-Type': 'application/json' },
+								body: JSON.stringify({ name: tag })
+							})
+							.then(function(r) { if (!r.ok) throw new Error('delete failed'); return r.text(); })
+							.then(function() {
+								delete self.deletingMap[tag];
+								if (norm) delete self.deletingMap[norm];
+								try {
+									localStorage.removeItem('onellama_deleting_' + tag);
+									if (norm) localStorage.removeItem('onellama_deleting_' + norm);
+								} catch (e) {}
+								return self.loadInstalled();
+							})
+							.then(function() { self.updateUI(); })
+							.catch(function() {
+								delete self.deletingMap[tag];
+								if (norm) delete self.deletingMap[norm];
+								try {
+									localStorage.removeItem('onellama_deleting_' + tag);
+									if (norm) localStorage.removeItem('onellama_deleting_' + norm);
+								} catch (e) {}
+								self.updateUI();
+							});
+						},
+
+						whiteDownloadSVG: '<svg class="h-4 w-4 text-white hover:opacity-80 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M12 3v13.5m0 0l-4.5-4.5m4.5 4.5l4.5-4.5" /></svg>',
+						graySpinnerSVG: '<svg class="animate-spin h-4 w-4 text-neutral-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>',
+						grayCheckSVG: '<svg class="h-4 w-4 text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>',
+						whiteTrashSVG: '<svg class="h-4 w-4 text-white hover:text-red-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" /></svg>',
+
+						getBaseModel: function() {
+							var pathParam = new URLSearchParams(window.location.search).get('path') || window.location.pathname;
+							pathParam = pathParam.replace(/^\/+/, '').replace(/^library\//, '');
+							var parts = pathParam.split('/');
+							if (parts[0] && parts[0] !== 'search' && parts[0] !== 'tags') {
+								return parts[0].split('?')[0];
+							}
+							return '';
+						},
+
+						extractTag: function(row, baseModel) {
+							var tag = '';
+
+							// 1. Check inputs
+							var inputs = row.querySelectorAll('input');
+							for (var i = 0; i < inputs.length; i++) {
+								var val = (inputs[i].value || '').trim();
+								val = val.replace(/^ollama\s+(run|pull)\s+/i, '').trim();
+								if (val) {
+									tag = val;
+									break;
+								}
+							}
+
+							// 2. Check links
+							if (!tag) {
+								var links = row.querySelectorAll('a[href*="/library/"]');
+								for (var l = 0; l < links.length; l++) {
+									var href = links[l].getAttribute('href') || '';
+									var m = href.match(/\/library\/([^?#]+)/);
+									if (m && m[1] && m[1] !== 'tags' && m[1].indexOf('search') === -1) {
+										tag = m[1];
+										break;
+									}
+								}
+							}
+
+							// 3. Check first cell / link / text if tag is still empty
+							if (!tag) {
+								var firstCol = row.querySelector('.col-span-6, .col-span-5, a, p, span');
+								if (firstCol) {
+									var txt = (firstCol.textContent || '').trim().split(/\s+/)[0];
+									if (txt && txt.length < 50 && txt.indexOf('Available') === -1 && txt.indexOf('View') === -1) {
+										tag = txt;
+									}
+								}
+							}
+
+							if (!tag) return '';
+							if (tag.indexOf(' ') !== -1) return '';
+							tag = tag.replace(/^[:\/]+/, '');
+
+							if (baseModel && tag.indexOf(':') === -1 && tag.indexOf('/') === -1) {
+								tag = baseModel + ':' + tag;
+							}
+
+							return tag;
+						},
+
+						updateUI: function() {
+							var self = this;
+							var baseModel = self.getBaseModel();
+
+							// Find top-level header rows
+							var allHeaders = document.querySelectorAll('.divide-y > .grid, .table-head, [class*="grid-cols-"]');
+							var headerRows = [];
+							for (var i = 0; i < allHeaders.length; i++) {
+								var el = allHeaders[i];
+								var txt = el.textContent || '';
+								if (txt.indexOf('Input') === -1 && txt.indexOf('Context') === -1 && txt.indexOf('Size') === -1 && txt.indexOf('Quantization') === -1) continue;
+
+								var isNested = false;
+								for (var j = 0; j < headerRows.length; j++) {
+									if (headerRows[j].contains(el)) { isNested = true; break; }
+								}
+								if (!isNested) {
+									headerRows.push(el);
+								}
+							}
+
+							for (var h = 0; h < headerRows.length; h++) {
+								var header = headerRows[h];
+
+								// 1. Header column
+								if (!header.querySelector('.ol-dl-header')) {
+									var p = document.createElement('p');
+									p.className = 'col-span-1 hidden md:block ol-dl-header font-medium text-xs text-neutral-900 dark:text-neutral-100 text-center';
+									p.textContent = 'Download';
+
+									var children = header.children;
+									var inputElem = null;
+									for (var c = 0; c < children.length; c++) {
+										var cText = children[c].textContent.trim();
+										if (cText === 'Input' || cText === 'Quantization' || cText === 'Context' || cText === 'Size / Usage') {
+											inputElem = children[c];
+										}
+									}
+									if (inputElem) {
+										inputElem.parentNode.insertBefore(p, inputElem.nextSibling);
+									} else {
+										header.appendChild(p);
+									}
+
+									for (var c = 0; c < children.length; c++) {
+										if (children[c].classList.contains('col-span-6')) {
+											children[c].classList.remove('col-span-6');
+											children[c].classList.add('col-span-5');
+										}
+									}
+								}
+
+								// 2. Table container rows
+								var tableContainer = header.closest('.divide-y') || header.parentNode;
+								if (!tableContainer) continue;
+
+								var rowElems = tableContainer.children;
+								for (var r = 0; r < rowElems.length; r++) {
+									var row = rowElems[r];
+									if (row === header || row.classList.contains('ol-dl-header')) continue;
+
+									var tag = self.extractTag(row, baseModel);
+									if (!tag) continue;
+
+									var isLocalUnlisted = (row.textContent || '').indexOf('Available Locally. Not available in the ollama library.') !== -1;
+									var gridRow = row.querySelector('.grid') || (row.classList.contains('grid') ? row : null);
+									if (!gridRow) {
+										gridRow = row.querySelector('.hidden.md\\:flex, .row-desktop, [class*="grid-cols-"]') || row;
+									}
+
+									var nameSpan = gridRow.querySelector('.col-span-6');
+									if (nameSpan) {
+										nameSpan.classList.remove('col-span-6');
+										nameSpan.classList.add('col-span-5');
+									}
+
+									// Deduplicate cells in the row
+									var allDlCells = row.querySelectorAll('.ol-dl-cell');
+									var dlCell = allDlCells[0] || null;
+									for (var k = 1; k < allDlCells.length; k++) {
+										allDlCells[k].parentNode.removeChild(allDlCells[k]);
+									}
+
+									if (!dlCell) {
+										dlCell = document.createElement('div');
+										dlCell.className = 'col-span-1 text-neutral-500 text-[13px] ol-dl-cell flex items-center justify-center text-center';
+										gridRow.appendChild(dlCell);
+									} else if (dlCell.parentNode !== gridRow) {
+										gridRow.appendChild(dlCell);
+									}
+
+									var isPulling = self.isPullingTag(tag);
+									var isDeleting = self.isDeletingTag(tag);
+									var installed = self.isInstalled(tag);
+									var downloadable = self.isDownloadable(tag, row, isLocalUnlisted);
+
+									var targetState = (isPulling || isDeleting) ? 'spinner' : (installed ? 'installed' : (!downloadable ? 'dash' : 'download'));
+
+									if (dlCell.getAttribute('data-ol-state') === targetState && dlCell.getAttribute('data-ol-tag') === tag) {
+										continue;
+									}
+
+									dlCell.setAttribute('data-ol-state', targetState);
+									dlCell.setAttribute('data-ol-tag', tag);
+									dlCell.innerHTML = '';
+
+									if (targetState === 'spinner') {
+										dlCell.innerHTML = self.graySpinnerSVG;
+									} else if (targetState === 'installed') {
+										var btn = document.createElement('button');
+										btn.type = 'button';
+										btn.className = 'ol-installed-btn';
+										btn.style.cssText = 'background: transparent !important; background-color: transparent !important; border: none !important; outline: none !important; box-shadow: none !important; padding: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center;';
+										btn.title = 'Delete model (' + tag + ')';
+										btn.innerHTML = '<span class="ol-check-icon">' + self.grayCheckSVG + '</span><span class="ol-trash-icon">' + self.whiteTrashSVG + '</span>';
+
+										(function(mTag) {
+											btn.addEventListener('click', function(e) {
+												e.preventDefault();
+												e.stopPropagation();
+												self.deleteModel(mTag);
+											});
+										})(tag);
+										dlCell.appendChild(btn);
+									} else if (targetState === 'dash') {
+										var dash = document.createElement('span');
+										dash.className = 'text-neutral-500 font-medium px-2';
+										dash.textContent = '-';
+										dlCell.appendChild(dash);
+									} else {
+										var btn = document.createElement('button');
+										btn.type = 'button';
+										btn.style.cssText = 'background: transparent !important; background-color: transparent !important; border: none !important; outline: none !important; box-shadow: none !important; padding: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center;';
+										btn.title = 'Download model (' + tag + ')';
+										btn.innerHTML = self.whiteDownloadSVG;
+										(function(mTag) {
+											btn.addEventListener('click', function(e) {
+												e.preventDefault();
+												e.stopPropagation();
+												self.pullModel(mTag);
+											});
+										})(tag);
+										dlCell.appendChild(btn);
+									}
+								}
+							}
+						},
+
+						init: function() {
+							var self = this;
+							window.addEventListener('message', function(e) {
+								if (e.data && e.data.type === 'pullComplete') {
+									var tag = e.data.tag;
+									var norm = self.normalizeTag(tag);
+									delete self.pullingMap[tag];
+									if (norm) delete self.pullingMap[norm];
+									self.loadInstalled().then(function() { self.updateUI(); });
+								}
+							});
+							self.loadInstalled().then(function() { self.updateUI(); });
+							document.addEventListener('htmx:afterSwap', function() {
+								self.loadInstalled().then(function() { self.updateUI(); });
+							});
+							document.addEventListener('DOMContentLoaded', function() {
+								self.loadInstalled().then(function() { self.updateUI(); });
+							});
+							setInterval(function() { self.updateUI(); }, 1000);
+						}
+					};
+
+					dlColumn.init();
 				})();
 			</script>
-		`, themeCSS, ollamaLogoDataURI)
+		`, themeCSS, ollamaLogoDataURI, runtime.GOOS)
 
 		if idx := strings.Index(htmlStr, "<head>"); idx != -1 {
 			htmlStr = htmlStr[:idx+6] + injectedCode + htmlStr[idx+6:]

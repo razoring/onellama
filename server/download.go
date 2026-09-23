@@ -138,12 +138,24 @@ func (b *blobDownload) Prepare(ctx context.Context, requestURL *url.URL, opts *r
 	for _, partFilePath := range partFilePaths {
 		part, err := b.readPart(partFilePath)
 		if err != nil {
-			return err
+			slog.Warn("corrupt or invalid part file, removing to restart fresh", "path", partFilePath, "error", err)
+			_ = os.Remove(partFilePath)
+			continue
 		}
 
 		b.Total += part.Size
 		b.Completed.Add(part.Completed.Load())
 		b.Parts = append(b.Parts, part)
+	}
+
+	if len(b.Parts) > 0 && len(b.Parts) < len(partFilePaths) {
+		// If some parts were corrupt and deleted, reset and start fresh for clean resume
+		for _, part := range b.Parts {
+			_ = os.Remove(part.Name())
+		}
+		b.Parts = nil
+		b.Total = 0
+		b.Completed.Store(0)
 	}
 
 	if len(b.Parts) == 0 {
@@ -318,7 +330,7 @@ func (b *blobDownload) run(ctx context.Context, requestURL *url.URL, opts *regis
 	}
 
 	for i := range b.Parts {
-		if err := os.Remove(file.Name() + "-" + strconv.Itoa(i)); err != nil {
+		if err := os.Remove(file.Name() + "-" + strconv.Itoa(i)); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return err
 		}
 	}

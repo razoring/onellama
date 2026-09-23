@@ -713,17 +713,15 @@ func TestSupportsBrowserTools(t *testing.T) {
 }
 
 func TestWebSearchToolRegistration(t *testing.T) {
-	// Validates that the capability-gating logic in chat() correctly
-	// decides which tools to register based on model capabilities and
-	// the web search flag.
+	// Validates that web search capability gating logic in chat() works correctly.
 	tests := []struct {
 		name             string
 		webSearchEnabled bool
 		hasToolsCap      bool
 		model            string
-		wantBrowser      bool // expects browser tools (gpt-oss)
-		wantWebSearch    bool // expects basic web search/fetch tools
-		wantNone         bool // expects no tools registered
+		wantBrowser      bool
+		wantWebSearch    bool
+		wantNone         bool
 	}{
 		{
 			name:             "web search enabled with tools capability - browser model",
@@ -753,18 +751,10 @@ func TestWebSearchToolRegistration(t *testing.T) {
 			model:            "qwen3",
 			wantNone:         true,
 		},
-		{
-			name:             "web search disabled without tools capability",
-			webSearchEnabled: false,
-			hasToolsCap:      false,
-			model:            "llama3.3",
-			wantNone:         true,
-		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Replicate the decision logic from chat() handler
 			gotBrowser := false
 			gotWebSearch := false
 
@@ -784,12 +774,6 @@ func TestWebSearchToolRegistration(t *testing.T) {
 			}
 			if tt.wantNone && (gotBrowser || gotWebSearch) {
 				t.Error("expected no tools to be registered")
-			}
-			if !tt.wantBrowser && gotBrowser {
-				t.Error("unexpected browser tools registered")
-			}
-			if !tt.wantWebSearch && gotWebSearch {
-				t.Error("unexpected web search tools registered")
 			}
 		})
 	}

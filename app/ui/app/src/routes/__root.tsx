@@ -6,6 +6,7 @@ import { useCloudStatus } from "@/hooks/useCloudStatus";
 import { preloadChatData } from "@/lib/chatPreload";
 import { preventPageSelectAll } from "@/lib/keyboard";
 import { useEffect } from "react";
+import GlobalDownloads from "@/components/GlobalDownloads";
 
 function applyTheme(theme: string) {
   const dark =
@@ -53,6 +54,7 @@ function RootComponent() {
   return (
     <div>
       <Outlet />
+      <GlobalDownloads />
     </div>
   );
 }

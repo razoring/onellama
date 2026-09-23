@@ -920,8 +920,11 @@ func (s *Server) chat(w http.ResponseWriter, r *http.Request) error {
 		thinkValue = think
 	}
 
+	registry := tools.NewRegistry()
+	ctx = tools.WithAllowedDirectURLs(ctx, userMessageText(chat.Messages))
+
 	// Check if the last user message has attachments
-	// TODO (parthsareen): this logic will change with directory drag and drop
+	// Note: Skip web search if user has attachments, as tools don't handle file attachments properly
 	hasAttachments := false
 	if len(chat.Messages) > 0 {
 		lastMsg := chat.Messages[len(chat.Messages)-1]
@@ -929,12 +932,6 @@ func (s *Server) chat(w http.ResponseWriter, r *http.Request) error {
 			hasAttachments = true
 		}
 	}
-
-	// Check if agent or tools mode is enabled
-	// Note: Skip agent/tools mode if user has attachments, as the agent doesn't handle file attachments properly
-	registry := tools.NewRegistry()
-	var browser *tools.Browser
-	ctx = tools.WithAllowedDirectURLs(ctx, userMessageText(chat.Messages))
 
 	if !hasAttachments {
 		WebSearchEnabled := req.WebSearch != nil && *req.WebSearch
@@ -946,7 +943,7 @@ func (s *Server) chat(w http.ResponseWriter, r *http.Request) error {
 				if !ok {
 					browserState = reconstructBrowserState(chat.Messages, tools.DefaultViewTokens)
 				}
-				browser = tools.NewBrowser(browserState)
+				browser := tools.NewBrowser(browserState)
 				registry.Register(tools.NewBrowserSearch(browser))
 				registry.Register(tools.NewBrowserOpen(browser))
 				registry.Register(tools.NewBrowserFind(browser))
@@ -957,13 +954,7 @@ func (s *Server) chat(w http.ResponseWriter, r *http.Request) error {
 		}
 	}
 
-	// Register core tools
-	registry.Register(&tools.AskUserTool{})
-	registry.Register(&tools.TerminalTool{})
-	registry.Register(&tools.FSReadTool{})
-	registry.Register(&tools.FSWriteTool{})
-
-	// Register tools from global s.ToolRegistry (e.g. MCP tools)
+	// Only register tools from global s.ToolRegistry (e.g. MCP tools)
 	if s.ToolRegistry != nil {
 		for _, t := range s.ToolRegistry.List() {
 			registry.Register(t)
@@ -1155,34 +1146,12 @@ func (s *Server) chat(w http.ResponseWriter, r *http.Request) error {
 					}
 
 					var tr json.RawMessage
-					if strings.HasPrefix(toolCall.Function.Name, "browser.search") {
-						// For standalone web_search, ensure the tool message has readable content
-						// so the second-pass model can consume results, while keeping browser state flow intact.
-						// We still persist tool msg with content below.
-						// (No browser state update needed for standalone.)
-					} else if strings.HasPrefix(toolCall.Function.Name, "browser") {
-						stateBytes, err := json.Marshal(browser.State())
-						if err != nil {
-							return fmt.Errorf("failed to marshal browser state: %w", err)
-						}
-						if err := s.Store.UpdateChatBrowserState(chat.ID, json.RawMessage(stateBytes)); err != nil {
-							return fmt.Errorf("failed to persist browser state to chat: %w", err)
-						}
-						// tool result is not added to the tool message for the browser tool
-					} else {
-						var err error
-						tr, err = json.Marshal(result)
-						if err != nil {
-							return fmt.Errorf("failed to marshal tool result: %w", err)
-						}
+					tr, err = json.Marshal(result)
+					if err != nil {
+						return fmt.Errorf("failed to marshal tool result: %w", err)
 					}
 					// ensure tool message sent back to the model has content (if empty, use a sensible fallback)
 					modelContent := content
-					if toolCall.Function.Name == "web_fetch" && modelContent == "" {
-						if str, ok := result.(string); ok {
-							modelContent = str
-						}
-					}
 					if modelContent == "" && len(tr) > 0 {
 						s.log().Debug("tool message empty, sending json result")
 						modelContent = string(tr)
@@ -1205,9 +1174,6 @@ func (s *Server) chat(w http.ResponseWriter, r *http.Request) error {
 					flusher.Flush()
 
 					var toolState any = nil
-					if browser != nil {
-						toolState = browser.State()
-					}
 					// Stream tool result to frontend
 
 					json.NewEncoder(w).Encode(responses.ChatEvent{
