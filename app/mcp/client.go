@@ -257,6 +257,9 @@ func (t *MCPTool) Execute(ctx context.Context, args map[string]any) (any, string
 }
 
 func (t *MCPTool) Prompt() string {
+	if t.description != "" {
+		return t.description
+	}
 	return fmt.Sprintf("Use this tool to interact with the %s MCP server.", t.client.name)
 }
 

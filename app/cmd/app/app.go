@@ -247,7 +247,7 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	// Start background scheduled tasks runner
-	schedRunner := scheduler.NewRunner(st)
+	schedRunner := scheduler.NewRunner(st, toolRegistry)
 	schedRunner.Start(ctx)
 	defer schedRunner.Stop()
 

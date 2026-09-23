@@ -13,18 +13,21 @@ import (
 	"github.com/google/uuid"
 	"github.com/ollama/ollama/api"
 	"github.com/ollama/ollama/app/store"
+	"github.com/ollama/ollama/app/tools"
 )
 
 type Runner struct {
-	store *store.Store
-	stop  chan struct{}
-	wg    sync.WaitGroup
+	store        *store.Store
+	toolRegistry *tools.Registry
+	stop         chan struct{}
+	wg           sync.WaitGroup
 }
 
-func NewRunner(s *store.Store) *Runner {
+func NewRunner(s *store.Store, tr *tools.Registry) *Runner {
 	return &Runner{
-		store: s,
-		stop:  make(chan struct{}),
+		store:        s,
+		toolRegistry: tr,
+		stop:         make(chan struct{}),
 	}
 }
 
@@ -146,11 +149,28 @@ func (r *Runner) executeTask(ctx context.Context, task store.ScheduledTask) {
 		return
 	}
 
+	var msgs []api.Message
+	if r.toolRegistry != nil {
+		if sp := r.toolRegistry.SystemPrompt(); sp != "" {
+			msgs = append(msgs, api.Message{
+				Role:    "system",
+				Content: sp,
+			})
+		}
+	}
+	msgs = append(msgs, api.Message{
+		Role:    "user",
+		Content: task.Prompt,
+	})
+
 	chatReq := &api.ChatRequest{
-		Model: task.Model,
-		Messages: []api.Message{
-			{Role: "user", Content: task.Prompt},
-		},
+		Model:    task.Model,
+		Messages: msgs,
+	}
+	if r.toolRegistry != nil {
+		if tools := r.toolRegistry.OllamaTools(); len(tools) > 0 {
+			chatReq.Tools = tools
+		}
 	}
 
 	var contentBuf, thinkingBuf strings.Builder

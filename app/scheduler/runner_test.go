@@ -34,7 +34,7 @@ func TestRunnerCreation(t *testing.T) {
 	s, cleanup := setupTestStore(t)
 	defer cleanup()
 
-	runner := NewRunner(s)
+	runner := NewRunner(s, nil)
 	if runner == nil {
 		t.Fatal("expected runner to be created")
 	}

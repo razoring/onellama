@@ -1043,6 +1043,7 @@ func (s *Server) chat(w http.ResponseWriter, r *http.Request) error {
 		var toolsExecuted bool
 
 		availableTools := registry.AvailableTools()
+		systemPrompt := registry.SystemPrompt()
 
 		// If we have pending assistant tool_calls and no assistant yet,
 		// build the request against a temporary chat that includes a
@@ -1070,7 +1071,7 @@ func (s *Server) chat(w http.ResponseWriter, r *http.Request) error {
 			}
 		}
 		settings, _ := s.Store.Settings()
-		chatReq, err := s.buildChatRequest(reqChat, req.Model, thinkValue, availableTools, settings.OutputLength)
+		chatReq, err := s.buildChatRequest(reqChat, req.Model, thinkValue, availableTools, settings.OutputLength, systemPrompt)
 		if err != nil {
 			return err
 		}
@@ -1841,49 +1842,7 @@ func userAgent() string {
 
 // convertToOllamaTool converts a tool schema from our tools package format to Ollama API format
 func convertToOllamaTool(toolSchema map[string]any) api.Tool {
-	tool := api.Tool{
-		Type: "function",
-		Function: api.ToolFunction{
-			Name:        getStringFromMap(toolSchema, "name", ""),
-			Description: getStringFromMap(toolSchema, "description", ""),
-		},
-	}
-
-	tool.Function.Parameters.Type = "object"
-	tool.Function.Parameters.Required = []string{}
-	tool.Function.Parameters.Properties = api.NewToolPropertiesMap()
-
-	if schemaProps, ok := toolSchema["schema"].(map[string]any); ok {
-		tool.Function.Parameters.Type = getStringFromMap(schemaProps, "type", "object")
-
-		if props, ok := schemaProps["properties"].(map[string]any); ok {
-			tool.Function.Parameters.Properties = api.NewToolPropertiesMap()
-
-			for propName, propDef := range props {
-				if propMap, ok := propDef.(map[string]any); ok {
-					prop := api.ToolProperty{
-						Type:        api.PropertyType{getStringFromMap(propMap, "type", "string")},
-						Description: getStringFromMap(propMap, "description", ""),
-					}
-					tool.Function.Parameters.Properties.Set(propName, prop)
-				}
-			}
-		}
-
-		if required, ok := schemaProps["required"].([]string); ok {
-			tool.Function.Parameters.Required = required
-		} else if requiredAny, ok := schemaProps["required"].([]any); ok {
-			required := make([]string, len(requiredAny))
-			for i, r := range requiredAny {
-				if s, ok := r.(string); ok {
-					required[i] = s
-				}
-			}
-			tool.Function.Parameters.Required = required
-		}
-	}
-
-	return tool
+	return tools.ConvertToOllamaTool(toolSchema)
 }
 
 // getStringFromMap safely gets a string from a map
@@ -1909,7 +1868,7 @@ func supportsBrowserTools(model string) bool {
 }
 
 // buildChatRequest converts store.Chat to api.ChatRequest
-func (s *Server) buildChatRequest(chat *store.Chat, model string, think any, availableTools []map[string]any, outputLength int) (*api.ChatRequest, error) {
+func (s *Server) buildChatRequest(chat *store.Chat, model string, think any, availableTools []map[string]any, outputLength int, systemPrompt string) (*api.ChatRequest, error) {
 	var msgs []api.Message
 	for _, m := range chat.Messages {
 		// Skip empty messages if present
@@ -1970,6 +1929,20 @@ func (s *Server) buildChatRequest(chat *store.Chat, model string, think any, ava
 		}
 
 		msgs = append(msgs, apiMsg)
+	}
+
+	if systemPrompt != "" {
+		var systemMsgFound bool
+		for i := range msgs {
+			if msgs[i].Role == "system" {
+				msgs[i].Content = systemPrompt + "\n\n" + msgs[i].Content
+				systemMsgFound = true
+				break
+			}
+		}
+		if !systemMsgFound {
+			msgs = append([]api.Message{{Role: "system", Content: systemPrompt}}, msgs...)
+		}
 	}
 
 	var thinkValue *api.ThinkValue

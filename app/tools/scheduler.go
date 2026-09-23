@@ -24,11 +24,11 @@ func (s *SchedulerTool) Name() string {
 }
 
 func (s *SchedulerTool) Description() string {
-	return "Schedule prompts to run automatically in the background at a specified time. Supported operations: schedule_create, schedule_list, schedule_update, schedule_delete."
+	return "Schedule prompts to execute automatically in the background at a specified time (one-time or recurring). Supported operations: schedule_create, schedule_list, schedule_update, schedule_delete. Always use this tool when the user asks to run an action, prompt, or check at a future time, recurringly (e.g. daily, hourly), or on a schedule."
 }
 
 func (s *SchedulerTool) Prompt() string {
-	return "Use the Scheduler tool to create, view, update, or cancel scheduled tasks for running prompts in the background at specific times."
+	return "Use the Scheduler tool to schedule tasks to run automatically in the background. For recurring tasks (e.g., 'every day at 12:24am'), schedule the next upcoming occurrence with schedule_create, and write the scheduled prompt to perform the task and re-schedule itself for subsequent runs."
 }
 
 func (s *SchedulerTool) Schema() map[string]any {
