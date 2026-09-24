@@ -13,6 +13,7 @@ export const useChats = () => {
   return useQuery({
     queryKey: ["chats"],
     queryFn: getChats,
+    refetchInterval: 3000,
   });
 };
 
@@ -65,6 +66,15 @@ export const useChat = (chatId: string) => {
     },
     enabled: !!chatId && chatId !== "new",
     staleTime: 1500,
+    refetchInterval: () => {
+      // Poll every 1s if background task is currently generating for this chat
+      const chatsData = queryClient.getQueryData<{ chatInfos?: Array<{ id: string; isRunning?: boolean }> }>(["chats"]);
+      const chatInfo = chatsData?.chatInfos?.find((c) => c.id === chatId);
+      if (chatInfo?.isRunning) {
+        return 1000;
+      }
+      return false;
+    },
   });
 };
 

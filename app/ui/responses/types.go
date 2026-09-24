@@ -15,6 +15,7 @@ type ChatInfo struct {
 	UserExcerpt string    `json:"userExcerpt"`
 	CreatedAt   time.Time `json:"createdAt" ts_type:"Date" ts_transform:"new Date(__VALUE__)"`
 	UpdatedAt   time.Time `json:"updatedAt" ts_type:"Date" ts_transform:"new Date(__VALUE__)"`
+	IsRunning   bool      `json:"isRunning,omitempty"`
 }
 
 type ChatsResponse struct {

@@ -238,6 +238,8 @@ func main() {
 	// Initialize tools registry
 	toolRegistry := tools.NewRegistry()
 	toolRegistry.Register(tools.NewSchedulerTool(st))
+	toolRegistry.Register(&tools.WebSearch{})
+	toolRegistry.Register(&tools.WebFetch{})
 	if err := mcp.StartManager(toolRegistry); err != nil {
 		slog.Error("failed to start mcp manager", "error", err)
 	}

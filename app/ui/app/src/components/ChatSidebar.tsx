@@ -7,6 +7,7 @@ import { Link } from "@/components/ui/link";
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { ChatsResponse } from "@/gotypes";
 import { AppTopNavigation, AppBottomNavigation } from "@/components/AppSidebar";
+import { useStreamingContext } from "@/contexts/StreamingContext";
 
 // there's a hidden debug feature to copy a chat's data to the clipboard by
 // holding shift and clicking this many times within this many seconds
@@ -18,6 +19,7 @@ interface ChatSidebarProps {
 
 export function ChatSidebar({ currentChatId }: ChatSidebarProps) {
   const { data, isLoading, error } = useChats();
+  const { streamingChatIds } = useStreamingContext();
   const queryClient = useQueryClient();
   const renameMutation = useRenameChat();
   const deleteMutation = useDeleteChat();
@@ -258,76 +260,101 @@ export function ChatSidebar({ currentChatId }: ChatSidebarProps) {
                 <h3 className="text-xs font-medium text-neutral-400 dark:text-neutral-500 px-2 py-1 select-none">
                   {group.name}
                 </h3>
-                {group.chats.map((chat) => (
-                  <div
-                    key={chat.id}
-                    className={`allow-context-menu flex items-center relative text-sm text-neutral-800 dark:text-neutral-400 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 ${
-                      chat.id === currentChatId
-                        ? "bg-neutral-100 text-black dark:bg-neutral-800"
-                        : ""
-                    }`}
-                    onMouseEnter={() => handleMouseEnter(chat.id)}
-                    onContextMenu={(e) =>
-                      handleContextMenu(
-                        e,
-                        chat.id,
-                        chat.title ||
-                          chat.userExcerpt ||
-                          chat.createdAt.toLocaleString(),
-                      )
-                    }
-                  >
-                    {editingChatId === chat.id ? (
-                      <div className="flex-1 flex items-center min-w-0 px-2 py-2 bg-neutral-100 text-black dark:bg-neutral-800 rounded-lg">
-                        <span className="truncate font-sans text-sm w-full">
-                          <input
-                            ref={inputRef}
-                            type="text"
-                            value={editValue}
-                            onChange={(e) => setEditValue(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") {
-                                e.preventDefault();
-                                saveRename();
-                              } else if (e.key === "Escape") {
-                                setEditingChatId(null);
-                                setEditValue("");
-                              }
-                            }}
-                            className="bg-transparent border-0 focus:outline-none w-full dark:text-white"
-                            style={{
-                              font: "inherit",
-                              lineHeight: "inherit",
-                              padding: 0,
-                              margin: 0,
-                            }}
-                          />
-                        </span>
-                      </div>
-                    ) : (
-                      <Link
-                        to="/c/$chatId"
-                        params={{ chatId: chat.id }}
-                        className="flex-1 flex items-center min-w-0 px-2 py-2 select-none"
-                        onClick={(e) => {
-                          handleShiftClick(e, chat.id);
-                        }}
-                        draggable={false}
-                      >
-                        <span className="truncate font-sans text-sm">
-                          {chat.title ||
+                {group.chats.map((chat) => {
+                  const isChatRunning = chat.isRunning || streamingChatIds.has(chat.id);
+                  return (
+                    <div
+                      key={chat.id}
+                      className={`allow-context-menu flex items-center relative text-sm text-neutral-800 dark:text-neutral-400 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 ${
+                        chat.id === currentChatId
+                          ? "bg-neutral-100 text-black dark:bg-neutral-800"
+                          : ""
+                      }`}
+                      onMouseEnter={() => handleMouseEnter(chat.id)}
+                      onContextMenu={(e) =>
+                        handleContextMenu(
+                          e,
+                          chat.id,
+                          chat.title ||
                             chat.userExcerpt ||
-                            chat.createdAt.toLocaleString()}
-                        </span>
-                        {copiedChatId === chat.id && (
-                          <span className="ml-2 text-xs text-green-600 dark:text-green-400">
-                            Copied!
+                            chat.createdAt.toLocaleString(),
+                        )
+                      }
+                    >
+                      {editingChatId === chat.id ? (
+                        <div className="flex-1 flex items-center min-w-0 px-2 py-2 bg-neutral-100 text-black dark:bg-neutral-800 rounded-lg">
+                          <span className="truncate font-sans text-sm w-full">
+                            <input
+                              ref={inputRef}
+                              type="text"
+                              value={editValue}
+                              onChange={(e) => setEditValue(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  e.preventDefault();
+                                  saveRename();
+                                } else if (e.key === "Escape") {
+                                  setEditingChatId(null);
+                                  setEditValue("");
+                                }
+                              }}
+                              className="bg-transparent border-0 focus:outline-none w-full dark:text-white"
+                              style={{
+                                font: "inherit",
+                                lineHeight: "inherit",
+                                padding: 0,
+                                margin: 0,
+                              }}
+                            />
                           </span>
-                        )}
-                      </Link>
-                    )}
-                  </div>
-                ))}
+                        </div>
+                      ) : (
+                        <Link
+                          to="/c/$chatId"
+                          params={{ chatId: chat.id }}
+                          className="flex-1 flex items-center min-w-0 px-2 py-2 select-none"
+                          onClick={(e) => {
+                            handleShiftClick(e, chat.id);
+                          }}
+                          draggable={false}
+                        >
+                          {isChatRunning && (
+                            <svg
+                              className="h-3.5 w-3.5 animate-spin shrink-0 text-neutral-500 dark:text-neutral-400 mr-1.5"
+                              xmlns="http://www.w3.org/2000/svg"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                            >
+                              <circle
+                                className="opacity-25"
+                                cx="12"
+                                cy="12"
+                                r="10"
+                                stroke="currentColor"
+                                strokeWidth="4"
+                              ></circle>
+                              <path
+                                className="opacity-75"
+                                fill="currentColor"
+                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                              ></path>
+                            </svg>
+                          )}
+                          <span className="truncate font-sans text-sm">
+                            {chat.title ||
+                              chat.userExcerpt ||
+                              chat.createdAt.toLocaleString()}
+                          </span>
+                          {copiedChatId === chat.id && (
+                            <span className="ml-2 text-xs text-green-600 dark:text-green-400">
+                              Copied!
+                            </span>
+                          )}
+                        </Link>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             ))}
           </div>

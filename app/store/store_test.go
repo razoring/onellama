@@ -146,6 +146,49 @@ func TestStore(t *testing.T) {
 		}
 	})
 
+	t.Run("pending scheduled tasks timezone check", func(t *testing.T) {
+		now := time.Now()
+		// Task scheduled in past (Local)
+		tPastLocal := ScheduledTask{
+			ID:          "past-local",
+			Prompt:      "Past Local",
+			Model:       "m",
+			ScheduledAt: now.Add(-5 * time.Minute),
+			Status:      "pending",
+		}
+		// Task scheduled in past (UTC)
+		tPastUTC := ScheduledTask{
+			ID:          "past-utc",
+			Prompt:      "Past UTC",
+			Model:       "m",
+			ScheduledAt: now.UTC().Add(-5 * time.Minute),
+			Status:      "pending",
+		}
+		// Task scheduled in future
+		tFuture := ScheduledTask{
+			ID:          "future",
+			Prompt:      "Future",
+			Model:       "m",
+			ScheduledAt: now.Add(5 * time.Minute),
+			Status:      "pending",
+		}
+
+		_ = s.CreateScheduledTask(tPastLocal)
+		_ = s.CreateScheduledTask(tPastUTC)
+		_ = s.CreateScheduledTask(tFuture)
+
+		pending, err := s.GetPendingScheduledTasks(now)
+		if err != nil {
+			t.Fatalf("failed to get pending scheduled tasks: %v", err)
+		}
+		if len(pending) != 2 {
+			t.Fatalf("expected 2 pending tasks, got %d", len(pending))
+		}
+		_ = s.DeleteScheduledTask("past-local")
+		_ = s.DeleteScheduledTask("past-utc")
+		_ = s.DeleteScheduledTask("future")
+	})
+
 	t.Run("settings empty home view falls back to chat", func(t *testing.T) {
 		if err := s.SetSettings(Settings{LastHomeView: ""}); err != nil {
 			t.Fatal(err)

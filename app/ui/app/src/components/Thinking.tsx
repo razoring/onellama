@@ -85,7 +85,7 @@ export default function Thinking({
   // Calculate max height for smooth animations
   const getMaxHeight = () => {
     if (isCollapsed) {
-      return finishedThinking ? "0px" : "12rem";
+      return "0px";
     }
     // When expanded, use the content height or grow naturally
     return contentHeight ? `${contentHeight}px` : "none";
@@ -149,7 +149,7 @@ export default function Thinking({
           ${isCollapsed ? "overflow-hidden" : "overflow-y-auto"}`}
         style={{
           maxHeight: isCollapsed ? getMaxHeight() : undefined,
-          opacity: isCollapsed && finishedThinking ? 0 : 1,
+          opacity: isCollapsed ? 0 : 1,
         }}
       >
         <div

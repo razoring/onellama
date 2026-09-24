@@ -533,9 +533,22 @@ func (s *Server) createChat(w http.ResponseWriter, r *http.Request) error {
 func (s *Server) listChats(w http.ResponseWriter, r *http.Request) error {
 	chats, _ := s.Store.Chats()
 
+	runningChatIDs := make(map[string]bool)
+	if tasks, err := s.Store.GetScheduledTasks(); err == nil {
+		for _, task := range tasks {
+			if task.Status == "running" && task.ChatID != "" {
+				runningChatIDs[task.ChatID] = true
+			}
+		}
+	}
+
 	chatInfos := make([]responses.ChatInfo, len(chats))
 	for i, chat := range chats {
-		chatInfos[i] = chatInfoFromChat(chat)
+		info := chatInfoFromChat(chat)
+		if runningChatIDs[chat.ID] {
+			info.IsRunning = true
+		}
+		chatInfos[i] = info
 	}
 
 	w.Header().Set("Content-Type", "application/json")

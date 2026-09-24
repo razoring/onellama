@@ -5,6 +5,7 @@ import { DisplayUpgrade } from "./DisplayUpgrade";
 import { DisplayStale } from "./DisplayStale";
 import { DisplayLogin } from "./DisplayLogin";
 import {
+  useChats,
   useChat,
   useSendMessage,
   useIsStreaming,
@@ -33,6 +34,8 @@ import { Message } from "@/gotypes";
 export default function Chat({ chatId }: { chatId: string }) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const { data: chatsData } = useChats();
+  const chatInfo = chatsData?.chatInfos?.find((c) => c.id === chatId);
   const chatQuery = useChat(chatId === "new" ? "" : chatId);
   const chatErrorQuery = useChatError(chatId === "new" ? "" : chatId);
   const { selectedModel } = useSelectedModel(chatId);
@@ -89,7 +92,7 @@ export default function Chat({ chatId }: { chatId: string }) {
   const chatError = chatErrorQuery.data;
 
   const messages = allMessages;
-  const isStreaming = useIsStreaming(chatId);
+  const isStreaming = useIsStreaming(chatId) || !!chatInfo?.isRunning;
   const isWaitingForLoad = useIsWaitingForLoad(chatId);
   const activeModelDownload = useDownloadProgress(selectedModel?.model || "");
   const isDownloadingModel = !!(activeModelDownload && typeof activeModelDownload === 'object' && 'event' in activeModelDownload && !activeModelDownload.event.done);

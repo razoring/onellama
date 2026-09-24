@@ -362,18 +362,14 @@ function ToolRoleContent({
               opacity: isCollapsed ? 0 : 1,
             }}
           >
-            <div
+            <pre
               id="raw-json-tool-result"
-              className="text-xs overflow-x-auto bg-neutral-50 dark:bg-neutral-900 text-neutral-800 dark:text-neutral-200 p-2 rounded-md border border-neutral-200 dark:border-neutral-700"
+              className="text-xs text-neutral-200 bg-neutral-900/90 p-2 rounded border border-neutral-800 overflow-x-auto max-h-60 whitespace-pre-wrap font-mono"
             >
-              {typeof rawToolResult === "string" ? (
-                <StreamingMarkdownContent content={rawToolResult} size="sm" />
-              ) : (
-                <pre className="text-xs overflow-x-auto font-mono">
-                  <code>{JSON.stringify(rawToolResult, null, 2)}</code>
-                </pre>
-              )}
-            </div>
+              {typeof rawToolResult === "string"
+                ? rawToolResult
+                : JSON.stringify(rawToolResult, null, 2)}
+            </pre>
           </div>
         </div>
       )}

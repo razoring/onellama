@@ -1511,10 +1511,13 @@ func (db *database) createScheduledTask(task ScheduledTask) error {
 	if task.Status == "" {
 		task.Status = "pending"
 	}
+	task.ScheduledAt = task.ScheduledAt.UTC()
 	if task.CreatedAt.IsZero() {
-		task.CreatedAt = now
+		task.CreatedAt = now.UTC()
+	} else {
+		task.CreatedAt = task.CreatedAt.UTC()
 	}
-	task.UpdatedAt = now
+	task.UpdatedAt = now.UTC()
 
 	_, err := db.conn.Exec(`
 		INSERT INTO scheduled_tasks (id, prompt, model, scheduled_at, status, created_at, updated_at, last_error, chat_id)
@@ -1565,7 +1568,8 @@ func (db *database) getScheduledTask(id string) (*ScheduledTask, error) {
 }
 
 func (db *database) updateScheduledTask(task ScheduledTask) error {
-	task.UpdatedAt = time.Now()
+	task.ScheduledAt = task.ScheduledAt.UTC()
+	task.UpdatedAt = time.Now().UTC()
 	_, err := db.conn.Exec(`
 		UPDATE scheduled_tasks
 		SET prompt = ?, model = ?, scheduled_at = ?, status = ?, updated_at = ?, last_error = ?, chat_id = ?
@@ -1586,12 +1590,13 @@ func (db *database) deleteScheduledTask(id string) error {
 }
 
 func (db *database) getPendingScheduledTasks(now time.Time) ([]ScheduledTask, error) {
+	nowUTC := now.UTC()
 	rows, err := db.conn.Query(`
 		SELECT id, prompt, model, scheduled_at, status, created_at, updated_at, COALESCE(last_error, ''), COALESCE(chat_id, '')
 		FROM scheduled_tasks
 		WHERE status = 'pending' AND scheduled_at <= ?
 		ORDER BY scheduled_at ASC
-	`, now)
+	`, nowUTC)
 	if err != nil {
 		return nil, fmt.Errorf("get pending scheduled tasks: %w", err)
 	}

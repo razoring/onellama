@@ -7,6 +7,7 @@ export class ChatInfo {
     userExcerpt: string;
     createdAt: Date;
     updatedAt: Date;
+    isRunning?: boolean;
 
     constructor(source: any = {}) {
         if ('string' === typeof source) source = JSON.parse(source);
@@ -15,6 +16,7 @@ export class ChatInfo {
         this.userExcerpt = source["userExcerpt"];
         this.createdAt = new Date(source["createdAt"]);
         this.updatedAt = new Date(source["updatedAt"]);
+        this.isRunning = source["isRunning"];
     }
 }
 export class ChatsResponse {

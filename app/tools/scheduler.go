@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/ollama/ollama/app/store"
 )
 
@@ -28,7 +29,7 @@ func (s *SchedulerTool) Description() string {
 }
 
 func (s *SchedulerTool) Prompt() string {
-	return "Use the Scheduler tool to schedule tasks to run automatically in the background. For recurring tasks (e.g., 'every day at 12:24am'), schedule the next upcoming occurrence with schedule_create, and write the scheduled prompt to perform the task and re-schedule itself for subsequent runs."
+	return "Use the Scheduler tool to schedule tasks to run automatically in the background. For recurring tasks (e.g., 'every day at 12:24am'), schedule the next upcoming occurrence with schedule_create, and write the scheduled prompt to perform the task and re-schedule itself for subsequent runs. Note: 12:00 AM is midnight (00:00) and 12:00 PM is noon (12:00). For example, 12:35 AM is 00:35:00 in 24-hour time."
 }
 
 func (s *SchedulerTool) Schema() map[string]any {
@@ -87,22 +88,28 @@ func (s *SchedulerTool) Execute(ctx context.Context, args map[string]any) (any, 
 			modelName = settings.SelectedModel
 		}
 
+		u, err := uuid.NewV7()
+		var taskID string
+		if err != nil {
+			taskID = fmt.Sprintf("task-%d", time.Now().UnixNano())
+		} else {
+			taskID = u.String()
+		}
+
 		task := store.ScheduledTask{
+			ID:          taskID,
 			Prompt:      prompt,
 			Model:       modelName,
-			ScheduledAt: t,
+			ScheduledAt: t.UTC(),
 			Status:      "pending",
+			CreatedAt:   time.Now().UTC(),
+			UpdatedAt:   time.Now().UTC(),
 		}
 		if err := s.Store.CreateScheduledTask(task); err != nil {
 			return nil, "", fmt.Errorf("failed to create scheduled task: %w", err)
 		}
-		tasks, _ := s.Store.GetScheduledTasks()
-		createdTask := task
-		if len(tasks) > 0 {
-			createdTask = tasks[len(tasks)-1]
-		}
-		resp, _ := json.Marshal(createdTask)
-		return createdTask, fmt.Sprintf("Successfully scheduled task ID %s for %s: %s", createdTask.ID, t.Format(time.RFC3339), string(resp)), nil
+		resp, _ := json.Marshal(task)
+		return task, fmt.Sprintf("Successfully scheduled task ID %s for %s: %s", task.ID, t.Format(time.RFC3339), string(resp)), nil
 
 	case "schedule_list":
 		tasks, err := s.Store.GetScheduledTasks()
@@ -129,7 +136,7 @@ func (s *SchedulerTool) Execute(ctx context.Context, args map[string]any) (any, 
 			if err != nil {
 				return nil, "", fmt.Errorf("invalid scheduled_at date format: %w", err)
 			}
-			existing.ScheduledAt = t
+			existing.ScheduledAt = t.UTC()
 		}
 		if modelName, ok := args["model"].(string); ok && modelName != "" {
 			existing.Model = modelName
@@ -157,17 +164,26 @@ func (s *SchedulerTool) Execute(ctx context.Context, args map[string]any) (any, 
 func parseTime(str string) (time.Time, error) {
 	formats := []string{
 		time.RFC3339,
+		"2006-01-02T15:04:05Z07:00",
 		"2006-01-02T15:04:05",
 		"2006-01-02 15:04:05",
 		"2006-01-02 15:04",
 		"2006-01-02T15:04",
+		"2006-01-02 03:04:05 PM",
+		"2006-01-02 03:04 PM",
+		"2006-01-02 03:04:05 pm",
+		"2006-01-02 03:04 pm",
+		"2006-01-02 03:04:05 AM",
+		"2006-01-02 03:04 AM",
+		"2006-01-02 03:04:05 am",
+		"2006-01-02 03:04 am",
 	}
 	for _, f := range formats {
 		if t, err := time.ParseInLocation(f, str, time.Local); err == nil {
-			return t, nil
+			return t.UTC(), nil
 		}
 		if t, err := time.Parse(f, str); err == nil {
-			return t, nil
+			return t.UTC(), nil
 		}
 	}
 	return time.Time{}, fmt.Errorf("unable to parse time string '%s'", str)
