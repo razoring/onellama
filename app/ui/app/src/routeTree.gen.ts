@@ -11,6 +11,7 @@
 // Import Routes
 
 import { Route as rootRoute } from './routes/__root'
+import { Route as SystemImport } from './routes/system'
 import { Route as SettingsImport } from './routes/settings'
 import { Route as ScheduledImport } from './routes/scheduled'
 import { Route as OnboardingImport } from './routes/onboarding'
@@ -21,6 +22,12 @@ import { Route as IndexImport } from './routes/index'
 import { Route as CChatIdImport } from './routes/c.$chatId'
 
 // Create/Update Routes
+
+const SystemRoute = SystemImport.update({
+  id: '/system',
+  path: '/system',
+  getParentRoute: () => rootRoute,
+} as any)
 
 const SettingsRoute = SettingsImport.update({
   id: '/settings',
@@ -123,6 +130,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsImport
       parentRoute: typeof rootRoute
     }
+    '/system': {
+      id: '/system'
+      path: '/system'
+      fullPath: '/system'
+      preLoaderRoute: typeof SystemImport
+      parentRoute: typeof rootRoute
+    }
     '/c/$chatId': {
       id: '/c/$chatId'
       path: '/c/$chatId'
@@ -143,6 +157,7 @@ export interface FileRoutesByFullPath {
   '/onboarding': typeof OnboardingRoute
   '/scheduled': typeof ScheduledRoute
   '/settings': typeof SettingsRoute
+  '/system': typeof SystemRoute
   '/c/$chatId': typeof CChatIdRoute
 }
 
@@ -154,6 +169,7 @@ export interface FileRoutesByTo {
   '/onboarding': typeof OnboardingRoute
   '/scheduled': typeof ScheduledRoute
   '/settings': typeof SettingsRoute
+  '/system': typeof SystemRoute
   '/c/$chatId': typeof CChatIdRoute
 }
 
@@ -166,6 +182,7 @@ export interface FileRoutesById {
   '/onboarding': typeof OnboardingRoute
   '/scheduled': typeof ScheduledRoute
   '/settings': typeof SettingsRoute
+  '/system': typeof SystemRoute
   '/c/$chatId': typeof CChatIdRoute
 }
 
@@ -179,6 +196,7 @@ export interface FileRouteTypes {
     | '/onboarding'
     | '/scheduled'
     | '/settings'
+    | '/system'
     | '/c/$chatId'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -189,6 +207,7 @@ export interface FileRouteTypes {
     | '/onboarding'
     | '/scheduled'
     | '/settings'
+    | '/system'
     | '/c/$chatId'
   id:
     | '__root__'
@@ -199,6 +218,7 @@ export interface FileRouteTypes {
     | '/onboarding'
     | '/scheduled'
     | '/settings'
+    | '/system'
     | '/c/$chatId'
   fileRoutesById: FileRoutesById
 }
@@ -211,6 +231,7 @@ export interface RootRouteChildren {
   OnboardingRoute: typeof OnboardingRoute
   ScheduledRoute: typeof ScheduledRoute
   SettingsRoute: typeof SettingsRoute
+  SystemRoute: typeof SystemRoute
   CChatIdRoute: typeof CChatIdRoute
 }
 
@@ -222,6 +243,7 @@ const rootRouteChildren: RootRouteChildren = {
   OnboardingRoute: OnboardingRoute,
   ScheduledRoute: ScheduledRoute,
   SettingsRoute: SettingsRoute,
+  SystemRoute: SystemRoute,
   CChatIdRoute: CChatIdRoute,
 }
 
@@ -242,6 +264,7 @@ export const routeTree = rootRoute
         "/onboarding",
         "/scheduled",
         "/settings",
+        "/system",
         "/c/$chatId"
       ]
     },
@@ -265,6 +288,9 @@ export const routeTree = rootRoute
     },
     "/settings": {
       "filePath": "settings.tsx"
+    },
+    "/system": {
+      "filePath": "system.tsx"
     },
     "/c/$chatId": {
       "filePath": "c.$chatId.tsx"

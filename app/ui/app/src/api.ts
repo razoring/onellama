@@ -639,3 +639,44 @@ export async function saveMCPConfig(raw: string): Promise<MCPConfigResponse> {
   return new MCPConfigResponse(data);
 }
 
+// Memory API
+
+export interface Memory {
+  id: string;
+  title: string;
+  content: string;
+  source_chat_id?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export async function fetchMemories(): Promise<Memory[]> {
+  const response = await fetch(`${API_BASE}/api/v1/memories`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch memories: ${response.statusText}`);
+  }
+  return response.json();
+}
+
+export async function updateMemory(id: string, content: string, title?: string): Promise<Memory> {
+  const response = await fetch(`${API_BASE}/api/v1/memories/${id}`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ content, title }),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to update memory: ${response.statusText}`);
+  }
+  return response.json();
+}
+
+export async function deleteMemory(id: string): Promise<void> {
+  const response = await fetch(`${API_BASE}/api/v1/memories/${id}`, {
+    method: "DELETE",
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to delete memory: ${response.statusText}`);
+  }
+}

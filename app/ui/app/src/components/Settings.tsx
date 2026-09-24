@@ -606,30 +606,32 @@ export default function Settings() {
             <div className="space-y-4 p-4">
               {/* Appearance */}
               <Field>
-                <div className="flex items-start space-x-3">
-                  <CogIcon className="mt-1 h-5 w-5 flex-shrink-0 text-black dark:text-neutral-100" />
-                  <div className="w-full">
-                    <Label>Appearance</Label>
-                    <Description>
-                      Choose how the app looks. Automatic follows your system
-                      theme.
-                    </Description>
-                    <div className="mt-3 inline-flex rounded-lg bg-neutral-100 p-1 dark:bg-neutral-800">
-                      {(["dark", "light", "automatic"] as const).map((option) => (
-                        <button
-                          key={option}
-                          type="button"
-                          onClick={() => handleChange("Theme", option)}
-                          className={`rounded-md px-4 py-1.5 text-sm font-medium capitalize transition-colors ${
-                            settings.Theme === option
-                              ? "bg-white text-neutral-900 shadow-xs dark:bg-white/10 dark:text-neutral-100"
-                              : "text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200"
-                          }`}
-                        >
-                          {option}
-                        </button>
-                      ))}
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-start space-x-3">
+                    <CogIcon className="mt-1 h-5 w-5 flex-shrink-0 text-black dark:text-neutral-100" />
+                    <div>
+                      <Label>Appearance</Label>
+                      <Description>
+                        Choose how the app looks. Automatic follows your system
+                        theme.
+                      </Description>
                     </div>
+                  </div>
+                  <div className="inline-flex shrink-0 rounded-lg bg-neutral-100 p-1 dark:bg-neutral-900/80 border border-transparent dark:border-neutral-700/50">
+                    {(["dark", "light", "automatic"] as const).map((option) => (
+                      <button
+                        key={option}
+                        type="button"
+                        onClick={() => handleChange("Theme", option)}
+                        className={`rounded-md px-3 py-1.5 text-xs sm:text-sm font-medium capitalize transition-colors ${
+                          settings.Theme === option
+                            ? "bg-white text-neutral-900 shadow-xs dark:bg-neutral-700 dark:text-white"
+                            : "text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200"
+                        }`}
+                      >
+                        {option}
+                      </button>
+                    ))}
                   </div>
                 </div>
               </Field>

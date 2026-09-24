@@ -15,7 +15,7 @@ import (
 
 // currentSchemaVersion defines the current database schema version.
 // Increment this when making schema changes that require migrations.
-const currentSchemaVersion = 22
+const currentSchemaVersion = 23
 
 // database wraps the SQLite connection.
 // SQLite handles its own locking for concurrent access:
@@ -94,6 +94,8 @@ func (db *database) init() error {
 		codex_desktop_used BOOLEAN NOT NULL DEFAULT 0,
 		output_length INTEGER NOT NULL DEFAULT 4096,
 		theme TEXT NOT NULL DEFAULT 'automatic',
+		system_prompt TEXT NOT NULL DEFAULT '',
+		memory_enabled BOOLEAN NOT NULL DEFAULT 1,
 		schema_version INTEGER NOT NULL DEFAULT %d
 	);
 
@@ -170,6 +172,17 @@ func (db *database) init() error {
 
 	CREATE INDEX IF NOT EXISTS idx_scheduled_tasks_scheduled_at ON scheduled_tasks(scheduled_at);
 	CREATE INDEX IF NOT EXISTS idx_scheduled_tasks_status ON scheduled_tasks(status);
+
+	CREATE TABLE IF NOT EXISTS memories (
+		id TEXT PRIMARY KEY,
+		title TEXT NOT NULL DEFAULT '',
+		content TEXT NOT NULL,
+		source_chat_id TEXT,
+		created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+		updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+	);
+
+	CREATE INDEX IF NOT EXISTS idx_memories_created_at ON memories(created_at);
 	`, currentSchemaVersion)
 
 	_, err := db.conn.Exec(schema)
@@ -324,6 +337,11 @@ func (db *database) migrate() error {
 				return fmt.Errorf("migrate v21 to v22: %w", err)
 			}
 			version = 22
+		case 22:
+			if err := db.migrateV22ToV23(); err != nil {
+				return fmt.Errorf("migrate v22 to v23: %w", err)
+			}
+			version = 23
 		default:
 			// If we have a version we don't recognize, just set it to current
 			// This might happen during development
@@ -1303,9 +1321,9 @@ func (db *database) getSettings() (Settings, error) {
 	var s Settings
 
 	err := db.conn.QueryRow(`
-		SELECT expose, survey, browser, models, agent, tools, working_dir, context_length, turbo_enabled, websearch_enabled, selected_model, sidebar_open, last_home_view, onboarding_version, think_enabled, think_level, auto_update_enabled, claude_desktop_used, codex_desktop_used, output_length, theme
+		SELECT expose, survey, browser, models, agent, tools, working_dir, context_length, turbo_enabled, websearch_enabled, selected_model, sidebar_open, last_home_view, onboarding_version, think_enabled, think_level, auto_update_enabled, claude_desktop_used, codex_desktop_used, output_length, theme, system_prompt, memory_enabled
 		FROM settings
-	`).Scan(&s.Expose, &s.Survey, &s.Browser, &s.Models, &s.Agent, &s.Tools, &s.WorkingDir, &s.ContextLength, &s.TurboEnabled, &s.WebSearchEnabled, &s.SelectedModel, &s.SidebarOpen, &s.LastHomeView, &s.OnboardingVersion, &s.ThinkEnabled, &s.ThinkLevel, &s.AutoUpdateEnabled, &s.ClaudeDesktopUsed, &s.CodexDesktopUsed, &s.OutputLength, &s.Theme)
+	`).Scan(&s.Expose, &s.Survey, &s.Browser, &s.Models, &s.Agent, &s.Tools, &s.WorkingDir, &s.ContextLength, &s.TurboEnabled, &s.WebSearchEnabled, &s.SelectedModel, &s.SidebarOpen, &s.LastHomeView, &s.OnboardingVersion, &s.ThinkEnabled, &s.ThinkLevel, &s.AutoUpdateEnabled, &s.ClaudeDesktopUsed, &s.CodexDesktopUsed, &s.OutputLength, &s.Theme, &s.SystemPrompt, &s.MemoryEnabled)
 	if err != nil {
 		if !strings.Contains(strings.ToLower(err.Error()), "no such column") {
 			return Settings{}, fmt.Errorf("get settings: %w", err)
@@ -1316,9 +1334,9 @@ func (db *database) getSettings() (Settings, error) {
 			return Settings{}, fmt.Errorf("migrate schema: %w", err)
 		}
 		err := db.conn.QueryRow(`
-			SELECT expose, survey, browser, models, agent, tools, working_dir, context_length, turbo_enabled, websearch_enabled, selected_model, sidebar_open, last_home_view, onboarding_version, think_enabled, think_level, auto_update_enabled, claude_desktop_used, codex_desktop_used, output_length, theme
+			SELECT expose, survey, browser, models, agent, tools, working_dir, context_length, turbo_enabled, websearch_enabled, selected_model, sidebar_open, last_home_view, onboarding_version, think_enabled, think_level, auto_update_enabled, claude_desktop_used, codex_desktop_used, output_length, theme, system_prompt, memory_enabled
 			FROM settings
-		`).Scan(&s.Expose, &s.Survey, &s.Browser, &s.Models, &s.Agent, &s.Tools, &s.WorkingDir, &s.ContextLength, &s.TurboEnabled, &s.WebSearchEnabled, &s.SelectedModel, &s.SidebarOpen, &s.LastHomeView, &s.OnboardingVersion, &s.ThinkEnabled, &s.ThinkLevel, &s.AutoUpdateEnabled, &s.ClaudeDesktopUsed, &s.CodexDesktopUsed, &s.OutputLength, &s.Theme)
+		`).Scan(&s.Expose, &s.Survey, &s.Browser, &s.Models, &s.Agent, &s.Tools, &s.WorkingDir, &s.ContextLength, &s.TurboEnabled, &s.WebSearchEnabled, &s.SelectedModel, &s.SidebarOpen, &s.LastHomeView, &s.OnboardingVersion, &s.ThinkEnabled, &s.ThinkLevel, &s.AutoUpdateEnabled, &s.ClaudeDesktopUsed, &s.CodexDesktopUsed, &s.OutputLength, &s.Theme, &s.SystemPrompt, &s.MemoryEnabled)
 		if err != nil {
 			return Settings{}, fmt.Errorf("get settings: %w", err)
 		}
@@ -1339,8 +1357,8 @@ func (db *database) setSettings(s Settings) error {
 
 	_, err := db.conn.Exec(`
 		UPDATE settings
-		SET expose = ?, survey = ?, browser = ?, models = ?, agent = ?, tools = ?, working_dir = ?, context_length = ?, turbo_enabled = ?, websearch_enabled = ?, selected_model = ?, sidebar_open = ?, last_home_view = ?, onboarding_version = MAX(onboarding_version, ?), think_enabled = ?, think_level = ?, auto_update_enabled = ?, claude_desktop_used = ?, output_length = ?, theme = ?
-	`, s.Expose, s.Survey, s.Browser, s.Models, s.Agent, s.Tools, s.WorkingDir, s.ContextLength, s.TurboEnabled, s.WebSearchEnabled, s.SelectedModel, s.SidebarOpen, lastHomeView, s.OnboardingVersion, s.ThinkEnabled, s.ThinkLevel, s.AutoUpdateEnabled, s.ClaudeDesktopUsed, s.OutputLength, s.Theme)
+		SET expose = ?, survey = ?, browser = ?, models = ?, agent = ?, tools = ?, working_dir = ?, context_length = ?, turbo_enabled = ?, websearch_enabled = ?, selected_model = ?, sidebar_open = ?, last_home_view = ?, onboarding_version = MAX(onboarding_version, ?), think_enabled = ?, think_level = ?, auto_update_enabled = ?, claude_desktop_used = ?, output_length = ?, theme = ?, system_prompt = ?, memory_enabled = ?
+	`, s.Expose, s.Survey, s.Browser, s.Models, s.Agent, s.Tools, s.WorkingDir, s.ContextLength, s.TurboEnabled, s.WebSearchEnabled, s.SelectedModel, s.SidebarOpen, lastHomeView, s.OnboardingVersion, s.ThinkEnabled, s.ThinkLevel, s.AutoUpdateEnabled, s.ClaudeDesktopUsed, s.OutputLength, s.Theme, s.SystemPrompt, s.MemoryEnabled)
 	if err != nil {
 		return fmt.Errorf("set settings: %w", err)
 	}
@@ -1611,4 +1629,39 @@ func (db *database) getPendingScheduledTasks(now time.Time) ([]ScheduledTask, er
 		tasks = append(tasks, t)
 	}
 	return tasks, nil
+}
+
+// migrateV22ToV23 adds the memories table and system_prompt/memory_enabled columns to settings
+func (db *database) migrateV22ToV23() error {
+	_, err := db.conn.Exec(`ALTER TABLE settings ADD COLUMN system_prompt TEXT NOT NULL DEFAULT '';`)
+	if err != nil && !duplicateColumnError(err) {
+		return fmt.Errorf("add system_prompt column: %w", err)
+	}
+
+	_, err = db.conn.Exec(`ALTER TABLE settings ADD COLUMN memory_enabled BOOLEAN NOT NULL DEFAULT 1;`)
+	if err != nil && !duplicateColumnError(err) {
+		return fmt.Errorf("add memory_enabled column: %w", err)
+	}
+
+	schema := `
+	CREATE TABLE IF NOT EXISTS memories (
+		id TEXT PRIMARY KEY,
+		title TEXT NOT NULL DEFAULT '',
+		content TEXT NOT NULL,
+		source_chat_id TEXT,
+		created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+		updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+	);
+	CREATE INDEX IF NOT EXISTS idx_memories_created_at ON memories(created_at);
+	`
+	if _, err := db.conn.Exec(schema); err != nil {
+		return fmt.Errorf("create memories table: %w", err)
+	}
+
+	_, err = db.conn.Exec(`UPDATE settings SET schema_version = 23;`)
+	if err != nil {
+		return fmt.Errorf("update schema version to 23: %w", err)
+	}
+
+	return nil
 }

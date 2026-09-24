@@ -238,6 +238,9 @@ func main() {
 	// Initialize tools registry
 	toolRegistry := tools.NewRegistry()
 	toolRegistry.Register(tools.NewSchedulerTool(st))
+	toolRegistry.Register(tools.NewSaveMemoryTool(st))
+	toolRegistry.Register(tools.NewUpdateMemoryTool(st))
+	toolRegistry.Register(tools.NewForgetMemoryTool(st))
 	toolRegistry.Register(&tools.WebSearch{})
 	toolRegistry.Register(&tools.WebFetch{})
 	if err := mcp.StartManager(toolRegistry); err != nil {

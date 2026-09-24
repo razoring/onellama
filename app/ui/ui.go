@@ -306,6 +306,10 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("PUT /api/v1/scheduled/{id}", handle(s.updateScheduledTask))
 	mux.Handle("DELETE /api/v1/scheduled/{id}", handle(s.deleteScheduledTask))
 
+	mux.Handle("GET /api/v1/memories", handle(s.getMemories))
+	mux.Handle("PUT /api/v1/memories/{id}", handle(s.updateMemory))
+	mux.Handle("DELETE /api/v1/memories/{id}", handle(s.deleteMemory))
+
 	mux.Handle("GET /api/v1/models/webview", handle(s.modelsWebviewHandler))
 	mux.Handle("GET /api/v1/models/search", handle(s.modelsSearchHandler))
 
@@ -1084,7 +1088,24 @@ func (s *Server) chat(w http.ResponseWriter, r *http.Request) error {
 			}
 		}
 		settings, _ := s.Store.Settings()
-		chatReq, err := s.buildChatRequest(reqChat, req.Model, thinkValue, availableTools, settings.OutputLength, systemPrompt)
+
+		var fullSystemPrompt string
+		if settings.SystemPrompt != "" {
+			fullSystemPrompt = settings.SystemPrompt
+		} else {
+			fullSystemPrompt = systemPrompt
+		}
+
+		if settings.MemoryEnabled {
+			if memories, err := s.Store.Memories(); err == nil && len(memories) > 0 {
+				fullSystemPrompt += "\n\n# PERSISTENT MEMORY\n"
+				for _, m := range memories {
+					fullSystemPrompt += fmt.Sprintf("- [%s]: %s\n", m.CreatedAt.Format("2006-01-02"), m.Content)
+				}
+				fullSystemPrompt += "\n"
+			}
+		}
+		chatReq, err := s.buildChatRequest(reqChat, req.Model, thinkValue, availableTools, settings.OutputLength, fullSystemPrompt)
 		if err != nil {
 			return err
 		}
@@ -1598,6 +1619,17 @@ func (s *Server) getSettings(w http.ResponseWriter, r *http.Request) error {
 	settings.Tools = s.Tools
 	settings.WorkingDir = s.WorkingDir
 
+	// Pre-fill system prompt if empty
+	if settings.SystemPrompt == "" {
+		registry := tools.NewRegistry()
+		if s.ToolRegistry != nil {
+			for _, t := range s.ToolRegistry.List() {
+				registry.Register(t)
+			}
+		}
+		settings.SystemPrompt = registry.SystemPrompt()
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	return json.NewEncoder(w).Encode(responses.SettingsResponse{
 		Settings: settings,
@@ -2053,4 +2085,51 @@ func (s *Server) respondToolPrompt(w http.ResponseWriter, r *http.Request) error
 	return json.NewEncoder(w).Encode(map[string]any{
 		"success": success,
 	})
+}
+
+// Memory Handlers
+func (s *Server) getMemories(w http.ResponseWriter, r *http.Request) error {
+	memories, err := s.Store.Memories()
+	if err != nil {
+		return fmt.Errorf("failed to get memories: %w", err)
+	}
+	if memories == nil {
+		memories = make([]store.Memory, 0)
+	}
+	w.Header().Set("Content-Type", "application/json")
+	return json.NewEncoder(w).Encode(memories)
+}
+
+func (s *Server) updateMemory(w http.ResponseWriter, r *http.Request) error {
+	id := r.PathValue("id")
+	if id == "" {
+		return fmt.Errorf("id is required")
+	}
+
+	var m store.Memory
+	if err := json.NewDecoder(r.Body).Decode(&m); err != nil {
+		return fmt.Errorf("invalid request body: %w", err)
+	}
+	m.ID = id
+
+	if err := s.Store.UpdateMemory(m); err != nil {
+		return fmt.Errorf("failed to update memory: %w", err)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	return json.NewEncoder(w).Encode(m)
+}
+
+func (s *Server) deleteMemory(w http.ResponseWriter, r *http.Request) error {
+	id := r.PathValue("id")
+	if id == "" {
+		return fmt.Errorf("id is required")
+	}
+
+	if err := s.Store.DeleteMemory(id); err != nil {
+		return fmt.Errorf("failed to delete memory: %w", err)
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+	return nil
 }

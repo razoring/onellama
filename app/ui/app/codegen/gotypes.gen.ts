@@ -422,6 +422,8 @@ export class Settings {
     AutoUpdateEnabled: boolean;
     ClaudeDesktopUsed: boolean;
     Theme: string;
+    SystemPrompt?: string;
+    MemoryEnabled?: boolean;
 
     constructor(source: any = {}) {
         if ('string' === typeof source) source = JSON.parse(source);
@@ -445,6 +447,8 @@ export class Settings {
         this.AutoUpdateEnabled = source["AutoUpdateEnabled"];
         this.ClaudeDesktopUsed = source["ClaudeDesktopUsed"];
         this.Theme = source["Theme"];
+        this.SystemPrompt = source["SystemPrompt"];
+        this.MemoryEnabled = source["MemoryEnabled"];
     }
 }
 export class SettingsResponse {

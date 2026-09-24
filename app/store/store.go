@@ -44,6 +44,15 @@ type ScheduledTask struct {
 	ChatID      string    `json:"chat_id,omitempty"`
 }
 
+type Memory struct {
+	ID           string    `json:"id"`
+	Title        string    `json:"title,omitempty"`
+	Content      string    `json:"content"`
+	SourceChatID string    `json:"source_chat_id,omitempty"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+}
+
 type Message struct {
 	Role              string           `json:"role"`
 	Content           string           `json:"content"`
@@ -201,6 +210,12 @@ type Settings struct {
 
 	// Theme is the app-wide appearance preference: "dark", "light", or "automatic".
 	Theme string
+
+	// SystemPrompt is the global system prompt configured by the user.
+	SystemPrompt string
+
+	// MemoryEnabled toggles the persistent cross-chat memory feature.
+	MemoryEnabled bool
 }
 
 // Keep in sync with CURRENT_ONBOARDING_VERSION in app/ui/app/src/lib/onboarding.ts.

@@ -2,7 +2,7 @@ import { Link } from "@/components/ui/link";
 import { ChatIcon } from "@/components/ChatIcon";
 import { ClockIcon, Cog6ToothIcon, CpuChipIcon, RectangleGroupIcon, Square3Stack3DIcon } from "@heroicons/react/24/outline";
 
-type AppSection = "apps" | "chat" | "settings" | "mcp" | "models" | "scheduled";
+type AppSection = "apps" | "chat" | "settings" | "mcp" | "models" | "scheduled" | "system";
 
 export function AppTopNavigation({ current }: { current: AppSection }) {
   const itemClass = (section: AppSection) =>
@@ -44,6 +44,10 @@ export function AppBottomNavigation({ current }: { current: AppSection }) {
 
   return (
     <div className="flex flex-col gap-0.5">
+      <Link to="/system" className={itemClass("system")} draggable={false}>
+        <Cog6ToothIcon className="h-5 w-5 stroke-current" />
+        <span className="truncate">System</span>
+      </Link>
       <Link to="/connect" className={itemClass("apps")} draggable={false}>
         <RectangleGroupIcon className="h-5 w-5 stroke-current" />
         <span className="truncate">Apps</span>
