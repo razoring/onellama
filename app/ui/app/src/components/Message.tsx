@@ -581,7 +581,7 @@ function ToolCallDisplay({
     );
   }
 
-  if (toolCall.function.name === "browser_vm") {
+  if (toolCall.function.name === "browser_vm" || toolCall.function.name.startsWith("browser_")) {
     let parsedArgs: any = null;
     try {
       parsedArgs = typeof toolCall.function.arguments === "string" ? JSON.parse(toolCall.function.arguments) : toolCall.function.arguments;

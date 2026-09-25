@@ -25,7 +25,7 @@ export default function GlobalDownloads() {
       {activeDownloads.map(({ modelName, event }) => (
         <div
           key={modelName}
-          className="pointer-events-auto bg-[#f5f5f5] dark:bg-[#262626] border border-neutral-200 dark:border-neutral-700 shadow-sm shadow-black/5 dark:shadow-none rounded-xl p-3.5 transition-all duration-200"
+          className="pointer-events-auto bg-[#f5f5f5] dark:bg-[#262626] shadow-sm shadow-black/5 dark:shadow-none rounded-xl p-3.5 transition-all duration-200"
         >
           <div className="text-xs font-semibold text-neutral-900 dark:text-neutral-100 mb-2 truncate">
             {modelName}

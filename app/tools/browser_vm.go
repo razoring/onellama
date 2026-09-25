@@ -119,8 +119,8 @@ func (b *BrowserVMTool) EnsureVMRunning() error {
 	}
 
 	args := append([]string{
-		"-m", "1024",
-		"-smp", "2",
+		"-m", "2048",
+		"-smp", "4",
 	}, accelArgs...)
 
 	var displayArgs []string
@@ -141,6 +141,8 @@ func (b *BrowserVMTool) EnsureVMRunning() error {
 		"-netdev", "user,id=net0,hostfwd=tcp::9222-:9222",
 		"-device", "virtio-net-pci,netdev=net0",
 		"-device", "virtio-vga",
+		"-usb",
+		"-device", "usb-tablet",
 		"-parallel", "none",
 		"-serial", "none",
 		"-monitor", "none",
@@ -200,7 +202,6 @@ func (b *BrowserVMTool) watchdogChromiumTabs() {
 
 		b.mu.Lock()
 		cmd := b.qemuCmd
-		hwnd := b.qemuHWND
 		b.mu.Unlock()
 
 		if cmd == nil || cmd.Process == nil {
@@ -210,12 +211,17 @@ func (b *BrowserVMTool) watchdogChromiumTabs() {
 		resp, err := http.Get("http://127.0.0.1:9222/json/list")
 		if err != nil {
 			if hadTabs {
-				slog.Info("Chromium exited/disconnected, hiding QEMU window to keep VM idling")
-				if hwnd != 0 {
-					hideWindow(hwnd)
-					HideOverlayWindow()
+				slog.Info("Chromium exited/disconnected, killing QEMU to respawn later")
+				realHWND := findQEMUHWND()
+				if realHWND != 0 {
+					hideWindow(realHWND)
 				}
+				HideOverlayWindow()
 				b.mu.Lock()
+				if b.qemuCmd != nil && b.qemuCmd.Process != nil {
+					b.qemuCmd.Process.Kill()
+				}
+				b.qemuCmd = nil
 				b.isControlled = false
 				b.mu.Unlock()
 				hadTabs = false
@@ -239,10 +245,11 @@ func (b *BrowserVMTool) watchdogChromiumTabs() {
 			hadTabs = true
 		} else if hadTabs && pageTabs == 0 {
 			slog.Info("Last tab closed, hiding QEMU window and keeping VM idling in background")
-			if hwnd != 0 {
-				hideWindow(hwnd)
-				HideOverlayWindow()
+			realHWND := findQEMUHWND()
+			if realHWND != 0 {
+				hideWindow(realHWND)
 			}
+			HideOverlayWindow()
 			b.mu.Lock()
 			b.isControlled = false
 			b.mu.Unlock()
@@ -254,6 +261,7 @@ func (b *BrowserVMTool) watchdogChromiumTabs() {
 func (b *BrowserVMTool) WaitForVM(ctx context.Context, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
+		_ = b.EnsureVMRunning()
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
@@ -318,10 +326,33 @@ func findQEMUHWND() uintptr {
 	}
 
 	user32 := syscall.NewLazyDLL("user32.dll")
+	isWindow := user32.NewProc("IsWindow")
 	enumWindows := user32.NewProc("EnumWindows")
 	getWindowThreadProcessId := user32.NewProc("GetWindowThreadProcessId")
-	findWindowW := user32.NewProc("FindWindowW")
 	getWindowTextW := user32.NewProc("GetWindowTextW")
+	getClassNameW := user32.NewProc("GetClassNameW")
+	getWindowRect := user32.NewProc("GetWindowRect")
+
+	overlayMu.Lock()
+	ovHWND := overlayHWND
+	overlayMu.Unlock()
+
+	// 1. Check if cached HWND is still valid and not the overlay
+	if globalBrowserVM != nil {
+		globalBrowserVM.mu.Lock()
+		saved := globalBrowserVM.qemuHWND
+		globalBrowserVM.mu.Unlock()
+		if saved != 0 && saved != ovHWND {
+			res, _, _ := isWindow.Call(saved)
+			if res != 0 {
+				var rect RECT
+				getWindowRect.Call(saved, uintptr(unsafe.Pointer(&rect)))
+				if (rect.Right-rect.Left) > 50 && (rect.Bottom-rect.Top) > 50 {
+					return saved
+				}
+			}
+		}
+	}
 
 	var targetPID uint32
 	if globalBrowserVM != nil {
@@ -334,20 +365,57 @@ func findQEMUHWND() uintptr {
 
 	var foundHWND uintptr
 	cb := syscall.NewCallback(func(hwnd uintptr, lParam uintptr) uintptr {
+		if hwnd == ovHWND {
+			return 1 // Never match overlay window
+		}
+
+		classBuf := make([]uint16, 256)
+		cLen, _, _ := getClassNameW.Call(hwnd, uintptr(unsafe.Pointer(&classBuf[0])), 256)
+		className := ""
+		if cLen > 0 {
+			className = syscall.UTF16ToString(classBuf[:cLen])
+		}
+		if className == "OneLlamaPiPOverlay" || strings.Contains(className, "IME") {
+			return 1
+		}
+
+		titleBuf := make([]uint16, 256)
+		tLen, _, _ := getWindowTextW.Call(hwnd, uintptr(unsafe.Pointer(&titleBuf[0])), 256)
+		title := ""
+		if tLen > 0 {
+			title = syscall.UTF16ToString(titleBuf[:tLen])
+		}
+		if title == "OneLlama Overlay" {
+			return 1
+		}
+
+		var rect RECT
+		getWindowRect.Call(hwnd, uintptr(unsafe.Pointer(&rect)))
+		w := rect.Right - rect.Left
+		h := rect.Bottom - rect.Top
+
 		if targetPID != 0 {
 			var pid uint32
 			getWindowThreadProcessId.Call(hwnd, uintptr(unsafe.Pointer(&pid)))
 			if pid == targetPID {
-				foundHWND = hwnd
-				return 0
+				// Must have non-trivial client dimensions to be the real display window
+				if w > 100 && h > 100 {
+					foundHWND = hwnd
+					return 0
+				}
+				if strings.Contains(title, "OneLlama") || strings.Contains(title, "QEMU") || strings.Contains(title, "qemu") {
+					if w > 20 && h > 20 {
+						foundHWND = hwnd
+						return 0
+					}
+				}
+				return 1
 			}
 		}
 
-		buf := make([]uint16, 256)
-		len, _, _ := getWindowTextW.Call(hwnd, uintptr(unsafe.Pointer(&buf[0])), 256)
-		if len > 0 {
-			text := syscall.UTF16ToString(buf[:len])
-			if strings.Contains(text, "OneLlama") || strings.Contains(text, "QEMU") || strings.Contains(text, "qemu") {
+		// Fallback by window title if targetPID is 0 or unmatched
+		if strings.Contains(title, "OneLlama Browser VM") || strings.Contains(title, "QEMU (OneLlama") {
+			if w > 50 && h > 50 {
 				foundHWND = hwnd
 				return 0
 			}
@@ -357,17 +425,12 @@ func findQEMUHWND() uintptr {
 	enumWindows.Call(cb, 0)
 
 	if foundHWND != 0 {
-		return foundHWND
-	}
-
-	for _, title := range []string{"OneLlama Browser VM", "QEMU (OneLlama Browser VM)", "QEMU", "qemu-system-x86_64"} {
-		tPtr, err := syscall.UTF16PtrFromString(title)
-		if err == nil {
-			hwnd, _, _ := findWindowW.Call(0, uintptr(unsafe.Pointer(tPtr)))
-			if hwnd != 0 {
-				return hwnd
-			}
+		if globalBrowserVM != nil {
+			globalBrowserVM.mu.Lock()
+			globalBrowserVM.qemuHWND = foundHWND
+			globalBrowserVM.mu.Unlock()
 		}
+		return foundHWND
 	}
 
 	return 0
@@ -534,6 +597,14 @@ func ResizeBrowserWindow(size string) {
 
 		// Show bottom-center pill button overlay to Return to Agent
 		ShowExpandedOverlayWindow(int(x), int(y), int(w), int(h))
+
+		// Clear any leftover Set-of-Marks badges so the user has a clean browser view
+		go func() {
+			_, wsURL, err := getActiveTab(context.Background())
+			if err == nil && wsURL != "" {
+				_, _ = evaluateInTab(context.Background(), wsURL, `document.querySelectorAll('.onellama-som-badge').forEach(function(b) { b.remove(); });`)
+			}
+		}()
 	} else if size == "close" || size == "hide" {
 		hideWindow(hwnd)
 		HideOverlayWindow()
@@ -640,9 +711,16 @@ func extractPageContentWithSoM(ctx context.Context, wsURL string) (string, error
 			var idCounter = 1;
 
 			document.querySelectorAll('.onellama-som-badge').forEach(function(b) { b.remove(); });
+			if (window.__onellama_som_timer) clearTimeout(window.__onellama_som_timer);
 
 			var selectors = 'a[href], button, input, textarea, select, [role="button"], [role="link"], [role="searchbox"]';
 			var elements = document.querySelectorAll(selectors);
+
+			var colors = [
+				'#e11d48', '#2563eb', '#16a34a', '#d97706', '#9333ea', 
+				'#0891b2', '#ea580c', '#4f46e5', '#059669', '#c026d3', 
+				'#db2777', '#0284c7', '#7c3aed', '#b45309', '#0d9488', '#dc2626'
+			];
 
 			for (var i = 0; i < elements.length; i++) {
 				var el = elements[i];
@@ -658,12 +736,15 @@ func extractPageContentWithSoM(ctx context.Context, wsURL string) (string, error
 					badge.style.position = 'absolute';
 					badge.style.left = (window.scrollX + rect.left) + 'px';
 					badge.style.top = (window.scrollY + rect.top) + 'px';
-					badge.style.background = '#e11d48';
+					var color = colors[(id - 1) % colors.length];
+					badge.style.background = color;
 					badge.style.color = '#ffffff';
-					badge.style.fontSize = '10px';
-					badge.style.fontWeight = 'bold';
-					badge.style.padding = '1px 3px';
-					badge.style.borderRadius = '3px';
+					badge.style.fontSize = '12px';
+					badge.style.fontWeight = '800';
+					badge.style.padding = '2px 5px';
+					badge.style.borderRadius = '4px';
+					badge.style.border = '1px solid rgba(255,255,255,0.7)';
+					badge.style.boxShadow = '0 2px 4px rgba(0,0,0,0.35)';
 					badge.style.zIndex = '999999';
 					badge.style.pointerEvents = 'none';
 					document.body.appendChild(badge);
@@ -688,6 +769,11 @@ func extractPageContentWithSoM(ctx context.Context, wsURL string) (string, error
 				}
 			}
 
+			// Automatically remove badges after 7 seconds if agent is idle
+			window.__onellama_som_timer = setTimeout(function() {
+				document.querySelectorAll('.onellama-som-badge').forEach(function(b) { b.remove(); });
+			}, 7000);
+
 			var title = document.title || "";
 			var currentUrl = window.location.href;
 			var rawBody = document.body ? document.body.innerText : "";
@@ -704,9 +790,21 @@ func extractPageContentWithSoM(ctx context.Context, wsURL string) (string, error
 		}
 	})()`
 
-	res, err := evaluateInTab(ctx, wsURL, js)
+	var res string
+	var err error
+	for attempt := 0; attempt < 5; attempt++ {
+		res, err = evaluateInTab(ctx, wsURL, js)
+		if err == nil {
+			break
+		}
+		time.Sleep(700 * time.Millisecond)
+		_, newWsURL, tabErr := getActiveTab(ctx)
+		if tabErr == nil && newWsURL != "" {
+			wsURL = newWsURL
+		}
+	}
 	if err != nil {
-		return "", err
+		return fmt.Sprintf("Navigation in progress or page loaded: %v", err), nil
 	}
 
 	var data struct {
@@ -865,6 +963,7 @@ func (b *BrowserVMTool) Execute(ctx context.Context, args map[string]any) (any, 
 		res, _ := evaluateInTab(ctx, wsURL, clickJS)
 		time.Sleep(2500 * time.Millisecond)
 
+		_, wsURL, _ = getActiveTab(ctx)
 		pageContent, _ := extractPageContentWithSoM(ctx, wsURL)
 		msg := fmt.Sprintf("Click result (%s):\n\n%s", res, pageContent)
 		return msg, msg, nil
@@ -896,15 +995,25 @@ func (b *BrowserVMTool) Execute(ctx context.Context, args map[string]any) (any, 
 			if (el) {
 				el.scrollIntoView({behavior: 'smooth', block: 'center'});
 				el.focus();
-				el.value = text;
+				var proto = el instanceof HTMLTextAreaElement ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
+				var descriptor = Object.getOwnPropertyDescriptor(proto, 'value');
+				if (descriptor && descriptor.set) {
+					descriptor.set.call(el, text);
+				} else {
+					el.value = text;
+				}
 				el.dispatchEvent(new Event('input', {bubbles: true}));
 				el.dispatchEvent(new Event('change', {bubbles: true}));
 				if (el.form) {
-					el.form.submit();
-				} else {
-					el.dispatchEvent(new KeyboardEvent('keydown', {key: 'Enter', keyCode: 13, which: 13, bubbles: true}));
-					el.dispatchEvent(new KeyboardEvent('keyup', {key: 'Enter', keyCode: 13, which: 13, bubbles: true}));
+					if (typeof el.form.requestSubmit === 'function') {
+						el.form.requestSubmit();
+					} else {
+						el.form.submit();
+					}
 				}
+				el.dispatchEvent(new KeyboardEvent('keydown', {key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true}));
+				el.dispatchEvent(new KeyboardEvent('keypress', {key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true}));
+				el.dispatchEvent(new KeyboardEvent('keyup', {key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true}));
 				return "OK";
 			}
 			return "NOT_FOUND";
@@ -913,6 +1022,7 @@ func (b *BrowserVMTool) Execute(ctx context.Context, args map[string]any) (any, 
 		res, _ := evaluateInTab(ctx, wsURL, typeJS)
 		time.Sleep(2500 * time.Millisecond)
 
+		_, wsURL, _ = getActiveTab(ctx)
 		pageContent, _ := extractPageContentWithSoM(ctx, wsURL)
 		msg := fmt.Sprintf("Type result (%s):\n\n%s", res, pageContent)
 		return msg, msg, nil

@@ -7,6 +7,7 @@ import (
 	"runtime"
 	"sync"
 	"syscall"
+	"time"
 	"unsafe"
 )
 
@@ -120,6 +121,17 @@ func initOverlayWindow() {
 				case WM_PAINT:
 					paintOverlay(hwnd)
 					return 0
+				case 0x0201: // WM_LBUTTONDOWN
+					overlayMu.Lock()
+					mode := overlayMode
+					overlayMu.Unlock()
+					if mode == "expanded" {
+						ResizeBrowserWindow("close")
+						return 0
+					} else if mode == "pip" {
+						ResizeBrowserWindow("full")
+						return 0
+					}
 				case WM_TIMER:
 					handleTimer(hwnd)
 					return 0
@@ -156,6 +168,21 @@ func initOverlayWindow() {
 
 				// Start 30ms timer for cursor tracking, hover detection, and window dragging
 				setTimer.Call(hwnd, 1, 30, 0)
+
+				// Continuous background ticker to post WM_TIMER directly so hover/drag never waits for window activation
+				go func() {
+					postMessage := user32.NewProc("PostMessageW")
+					ticker := time.NewTicker(25 * time.Millisecond)
+					defer ticker.Stop()
+					for range ticker.C {
+						overlayMu.Lock()
+						h := overlayHWND
+						overlayMu.Unlock()
+						if h != 0 {
+							postMessage.Call(h, WM_TIMER, 0, 0)
+						}
+					}
+				}()
 			}
 
 			var msg [48]byte
@@ -184,21 +211,31 @@ func handleTimer(hwnd uintptr) {
 	getAsyncKeyState := user32.NewProc("GetAsyncKeyState")
 	invalidateRect := user32.NewProc("InvalidateRect")
 	setWindowPos := user32.NewProc("SetWindowPos")
+	getWindowRect := user32.NewProc("GetWindowRect")
 
 	var pt POINT
 	getCursorPos.Call(uintptr(unsafe.Pointer(&pt)))
+
+	var wRect RECT
+	getWindowRect.Call(hwnd, uintptr(unsafe.Pointer(&wRect)))
+	wLeft := int(wRect.Left)
+	wTop := int(wRect.Top)
+	wRight := int(wRect.Right)
+	wBottom := int(wRect.Bottom)
+	wWidth := wRight - wLeft
+	wHeight := wBottom - wTop
 
 	keyState, _, _ := getAsyncKeyState.Call(1) // VK_LBUTTON
 	isLButtonDown := (keyState & 0x8000) != 0
 
 	if mode == "pip" {
-		inBounds := int(pt.X) >= bounds.x && int(pt.X) <= bounds.x+bounds.w &&
-			int(pt.Y) >= bounds.y && int(pt.Y) <= bounds.y+bounds.h
+		inBounds := int(pt.X) >= wLeft && int(pt.X) <= wRight &&
+			int(pt.Y) >= wTop && int(pt.Y) <= wBottom
 
 		btnW := int32(140)
 		btnH := int32(34)
-		btnX := int32(bounds.x) + (int32(bounds.w)-btnW)/2
-		btnY := int32(bounds.y) + int32(bounds.h) - btnH - 18
+		btnX := int32(wLeft) + (int32(wWidth)-btnW)/2
+		btnY := int32(wTop) + int32(wHeight) - btnH - 18
 		inButton := pt.X >= btnX && pt.X <= btnX+btnW && pt.Y >= btnY && pt.Y <= btnY+btnH
 
 		if isLButtonDown {
@@ -212,7 +249,7 @@ func handleTimer(hwnd uintptr) {
 					overlayMu.Lock()
 					isDragging = true
 					dragStartCursor = struct{ x, y int32 }{pt.X, pt.Y}
-					dragStartWindow = struct{ x, y int }{bounds.x, bounds.y}
+					dragStartWindow = struct{ x, y int }{wLeft, wTop}
 					overlayMu.Unlock()
 				}
 			} else {
@@ -228,9 +265,11 @@ func handleTimer(hwnd uintptr) {
 
 				qHwnd := findQEMUHWND()
 				if qHwnd != 0 {
-					setWindowPos.Call(qHwnd, ^uintptr(0), uintptr(newX), uintptr(newY), uintptr(bounds.w), uintptr(bounds.h), SWP_SHOWWINDOW)
+					setWindowPos.Call(qHwnd, ^uintptr(0), uintptr(newX), uintptr(newY), uintptr(wWidth), uintptr(wHeight), SWP_SHOWWINDOW)
 				}
-				setWindowPos.Call(hwnd, ^uintptr(0), uintptr(newX), uintptr(newY), uintptr(bounds.w), uintptr(bounds.h), SWP_SHOWWINDOW)
+				setWindowPos.Call(hwnd, ^uintptr(0), uintptr(newX), uintptr(newY), uintptr(wWidth), uintptr(wHeight), SWP_SHOWWINDOW)
+				bringWindowToTop := user32.NewProc("BringWindowToTop")
+				bringWindowToTop.Call(hwnd)
 				invalidateRect.Call(hwnd, 0, 0)
 			}
 		} else {
@@ -246,6 +285,8 @@ func handleTimer(hwnd uintptr) {
 				overlayHovered = inBounds
 				overlayMu.Unlock()
 				invalidateRect.Call(hwnd, 0, 0)
+				redrawWindow := user32.NewProc("RedrawWindow")
+				redrawWindow.Call(hwnd, 0, 0, 0, 0x0001|0x0004|0x0100) // RDW_INVALIDATE | RDW_ERASE | RDW_UPDATENOW
 			}
 		}
 	} else if mode == "expanded" {
@@ -255,7 +296,7 @@ func handleTimer(hwnd uintptr) {
 			int(pt.Y) >= bounds.y && int(pt.Y) <= bounds.y+int(btnH)
 
 		if isLButtonDown && inButton {
-			ResizeBrowserWindow("pip")
+			ResizeBrowserWindow("close")
 		}
 	}
 }
@@ -357,6 +398,16 @@ func paintOverlay(hwnd uintptr) {
 func ShowPiPOverlayWindow(x, y, w, h int) {
 	initOverlayWindow()
 
+	for i := 0; i < 25; i++ {
+		overlayMu.Lock()
+		hVal := overlayHWND
+		overlayMu.Unlock()
+		if hVal != 0 {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+
 	overlayMu.Lock()
 	hwnd := overlayHWND
 	overlayMode = "pip"
@@ -374,10 +425,18 @@ func ShowPiPOverlayWindow(x, y, w, h int) {
 	user32 := syscall.NewLazyDLL("user32.dll")
 	setWindowPos := user32.NewProc("SetWindowPos")
 	showWindow := user32.NewProc("ShowWindow")
+	bringWindowToTop := user32.NewProc("BringWindowToTop")
 	invalidateRect := user32.NewProc("InvalidateRect")
+	setWindowLongPtr := user32.NewProc("SetWindowLongPtrW")
+
+	qHwnd := findQEMUHWND()
+	if qHwnd != 0 {
+		setWindowLongPtr.Call(hwnd, uintptr(0xFFFFFFF8), qHwnd) // GWLP_HWNDPARENT = -8 (makes QEMU owner of overlay)
+	}
 
 	setWindowPos.Call(hwnd, ^uintptr(0), uintptr(x), uintptr(y), uintptr(w), uintptr(h), SWP_SHOWWINDOW)
 	showWindow.Call(hwnd, SW_SHOW)
+	bringWindowToTop.Call(hwnd)
 	invalidateRect.Call(hwnd, 0, 0)
 	slog.Info("PiP Overlay active on QEMU window", "x", x, "y", y, "w", w, "h", h)
 }
@@ -385,11 +444,21 @@ func ShowPiPOverlayWindow(x, y, w, h int) {
 func ShowExpandedOverlayWindow(qemuX, qemuY, qemuW, qemuH int) {
 	initOverlayWindow()
 
+	for i := 0; i < 25; i++ {
+		overlayMu.Lock()
+		hVal := overlayHWND
+		overlayMu.Unlock()
+		if hVal != 0 {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+
 	// Pill button floats at bottom center of expanded QEMU window
-	btnW := 180
-	btnH := 38
+	btnW := 190
+	btnH := 40
 	btnX := qemuX + (qemuW-btnW)/2
-	btnY := qemuY + qemuH - btnH - 16
+	btnY := qemuY + qemuH - btnH - 24
 
 	overlayMu.Lock()
 	hwnd := overlayHWND
@@ -408,10 +477,18 @@ func ShowExpandedOverlayWindow(qemuX, qemuY, qemuW, qemuH int) {
 	user32 := syscall.NewLazyDLL("user32.dll")
 	setWindowPos := user32.NewProc("SetWindowPos")
 	showWindow := user32.NewProc("ShowWindow")
+	bringWindowToTop := user32.NewProc("BringWindowToTop")
 	invalidateRect := user32.NewProc("InvalidateRect")
+	setWindowLongPtr := user32.NewProc("SetWindowLongPtrW")
+
+	qHwnd := findQEMUHWND()
+	if qHwnd != 0 {
+		setWindowLongPtr.Call(hwnd, uintptr(0xFFFFFFF8), qHwnd) // GWLP_HWNDPARENT = -8
+	}
 
 	setWindowPos.Call(hwnd, ^uintptr(0), uintptr(btnX), uintptr(btnY), uintptr(btnW), uintptr(btnH), SWP_SHOWWINDOW)
 	showWindow.Call(hwnd, SW_SHOW)
+	bringWindowToTop.Call(hwnd)
 	invalidateRect.Call(hwnd, 0, 0)
 	slog.Info("Expanded Pill Overlay active on QEMU window", "x", btnX, "y", btnY)
 }

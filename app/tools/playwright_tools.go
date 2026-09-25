@@ -213,10 +213,13 @@ func RegisterPlaywrightTools(r *Registry, vm *BrowserVMTool) {
 				if (!el) return "NOT_FOUND";
 				el.scrollIntoView({behavior: 'smooth', block: 'center'});
 				el.focus();
-				var evtInit = {bubbles: true, cancelable: true, button: %s === 'right' ? 2 : 0};
+				var evtInit = {bubbles: true, cancelable: true, view: window, button: %s === 'right' ? 2 : 0};
+				el.dispatchEvent(new MouseEvent('pointerdown', evtInit));
 				el.dispatchEvent(new MouseEvent('mousedown', evtInit));
+				el.dispatchEvent(new MouseEvent('pointerup', evtInit));
 				el.dispatchEvent(new MouseEvent('mouseup', evtInit));
 				el.dispatchEvent(new MouseEvent('click', evtInit));
+				if (el.click) el.click();
 				if (%t) {
 					el.dispatchEvent(new MouseEvent('dblclick', evtInit));
 				}
@@ -227,10 +230,15 @@ func RegisterPlaywrightTools(r *Registry, vm *BrowserVMTool) {
 			if err != nil {
 				return nil, "", err
 			}
-			time.Sleep(1500 * time.Millisecond)
+			time.Sleep(2000 * time.Millisecond)
 			_, wsURL, _ := getActiveTab(ctx)
 			pageContent, _ := extractPageContentWithSoM(ctx, wsURL)
-			msg := fmt.Sprintf("Click result: %s\n\n%s", res, pageContent)
+			if strings.TrimSpace(pageContent) == "" {
+				time.Sleep(1500 * time.Millisecond)
+				_, wsURL, _ = getActiveTab(ctx)
+				pageContent, _ = extractPageContentWithSoM(ctx, wsURL)
+			}
+			msg := fmt.Sprintf("Click result (%s):\n\n%s", res, pageContent)
 			return msg, msg, nil
 		},
 	})
@@ -245,12 +253,12 @@ func RegisterPlaywrightTools(r *Registry, vm *BrowserVMTool) {
 				"target":  map[string]any{"type": "string", "description": "Exact target element reference (SoM [#ID] or CSS selector)"},
 				"text":    map[string]any{"type": "string", "description": "Text to type into the element"},
 				"element": map[string]any{"type": "string", "description": "Human-readable element description"},
-				"submit":  map[string]any{"type": "boolean", "description": "Whether to press Enter after typing"},
+				"submit":  map[string]any{"type": "boolean", "description": "Whether to press Enter/submit after typing"},
 				"slowly":  map[string]any{"type": "boolean", "description": "Whether to type one character at a time"},
 			},
 			"required": []string{"target", "text"},
 		},
-		prompt: "Type text into an input field or search bar.",
+		prompt: "Type text into an input field or search bar. To immediately submit search form, set submit: true. Continue calling tools to browse until you have the final answer; do not output conversational filler.",
 		execFn: func(ctx context.Context, args map[string]any) (any, string, error) {
 			target, _ := args["target"].(string)
 			text, _ := args["text"].(string)
@@ -266,28 +274,43 @@ func RegisterPlaywrightTools(r *Registry, vm *BrowserVMTool) {
 				if (!el) return "NOT_FOUND";
 				el.scrollIntoView({behavior: 'smooth', block: 'center'});
 				el.focus();
-				el.value = %q;
+				var proto = el instanceof HTMLTextAreaElement ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
+				var descriptor = Object.getOwnPropertyDescriptor(proto, 'value');
+				if (descriptor && descriptor.set) {
+					descriptor.set.call(el, %q);
+				} else {
+					el.value = %q;
+				}
 				el.dispatchEvent(new Event('input', {bubbles: true}));
 				el.dispatchEvent(new Event('change', {bubbles: true}));
 				if (%t) {
 					if (el.form) {
-						el.form.submit();
-					} else {
-						el.dispatchEvent(new KeyboardEvent('keydown', {key: 'Enter', keyCode: 13, which: 13, bubbles: true}));
-						el.dispatchEvent(new KeyboardEvent('keyup', {key: 'Enter', keyCode: 13, which: 13, bubbles: true}));
+						if (typeof el.form.requestSubmit === 'function') {
+							el.form.requestSubmit();
+						} else {
+							el.form.submit();
+						}
 					}
+					el.dispatchEvent(new KeyboardEvent('keydown', {key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true}));
+					el.dispatchEvent(new KeyboardEvent('keypress', {key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true}));
+					el.dispatchEvent(new KeyboardEvent('keyup', {key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true}));
 				}
 				return "OK";
-			})()`, jsElementResolver, target, element, text, submit)
+			})()`, jsElementResolver, target, element, text, text, submit)
 
 			res, err := evalInActiveTab(ctx, js)
 			if err != nil {
 				return nil, "", err
 			}
-			time.Sleep(1500 * time.Millisecond)
+			time.Sleep(2000 * time.Millisecond)
 			_, wsURL, _ := getActiveTab(ctx)
 			pageContent, _ := extractPageContentWithSoM(ctx, wsURL)
-			msg := fmt.Sprintf("Type result: %s\n\n%s", res, pageContent)
+			if strings.TrimSpace(pageContent) == "" {
+				time.Sleep(1500 * time.Millisecond)
+				_, wsURL, _ = getActiveTab(ctx)
+				pageContent, _ = extractPageContentWithSoM(ctx, wsURL)
+			}
+			msg := fmt.Sprintf("Type result (%s):\n\n%s", res, pageContent)
 			return msg, msg, nil
 		},
 	})
