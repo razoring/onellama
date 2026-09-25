@@ -123,29 +123,50 @@ func (b *BrowserVMTool) EnsureVMRunning() error {
 		"-smp", "2",
 	}, accelArgs...)
 
+	var displayArgs []string
+	switch runtime.GOOS {
+	case "darwin":
+		displayArgs = []string{"-display", "cocoa"}
+	case "linux":
+		displayArgs = []string{"-display", "gtk,zoom-to-fit=on,show-menubar=off,show-tabs=off"}
+	default: // windows
+		displayArgs = []string{"-display", "gtk,zoom-to-fit=on,show-menubar=off,show-tabs=off,gl=off"}
+	}
+
 	args = append(args,
 		"-kernel", b.kernelPath,
 		"-initrd", b.initrdPath,
-		"-append", "console=tty0 video=1920x1080-32@60 root=/dev/vda rw modules=loop,squashfs,ext4,virtio_pci,virtio_blk,virtio_net rootwait rootdelay=3 quiet",
+		"-append", "console=tty0 video=1280x800-32@60 root=/dev/vda rw modules=loop,squashfs,ext4,virtio_pci,virtio_blk,virtio_net rootwait rootdelay=3 quiet",
 		"-drive", fmt.Sprintf("file=%s,format=qcow2,if=virtio", b.imgPath),
 		"-netdev", "user,id=net0,hostfwd=tcp::9222-:9222",
 		"-device", "virtio-net-pci,netdev=net0",
-		"-vga", "std",
+		"-device", "virtio-vga",
 		"-parallel", "none",
 		"-serial", "none",
 		"-monitor", "none",
 		"-name", "OneLlama Browser VM",
-		"-display", "sdl",
 	)
+	args = append(args, displayArgs...)
 
 	slog.Info("Starting bundled QEMU browser VM", "cmd", b.qemuExe)
 	cmd := exec.Command(b.qemuExe, args...)
 	cmd.Dir = filepath.Dir(b.qemuExe)
 
 	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("failed to start QEMU: %w", err)
+		// Fallback to SDL if GTK failed
+		slog.Warn("Failed to start with primary display, falling back to SDL", "error", err)
+		args = args[:len(args)-len(displayArgs)]
+		args = append(args, "-display", "sdl")
+		cmd = exec.Command(b.qemuExe, args...)
+		cmd.Dir = filepath.Dir(b.qemuExe)
+		if errFallback := cmd.Start(); errFallback != nil {
+			return fmt.Errorf("failed to start QEMU: %w", errFallback)
+		}
 	}
 	b.qemuCmd = cmd
+
+	// Start tab watchdog to monitor Chromium tabs and auto-hide when closed
+	go b.watchdogChromiumTabs()
 
 	// Hide window initially so it does not pop up in user's face
 	go func() {
@@ -163,6 +184,64 @@ func (b *BrowserVMTool) EnsureVMRunning() error {
 	}()
 
 	return nil
+}
+
+func (b *BrowserVMTool) watchdogChromiumTabs() {
+	var hadTabs bool
+	for {
+		time.Sleep(500 * time.Millisecond)
+
+		b.mu.Lock()
+		cmd := b.qemuCmd
+		hwnd := b.qemuHWND
+		b.mu.Unlock()
+
+		if cmd == nil || cmd.Process == nil {
+			return
+		}
+
+		resp, err := http.Get("http://127.0.0.1:9222/json/list")
+		if err != nil {
+			if hadTabs {
+				slog.Info("Chromium exited/disconnected, hiding QEMU window to keep VM idling")
+				if hwnd != 0 {
+					hideWindow(hwnd)
+					HideOverlayWindow()
+				}
+				b.mu.Lock()
+				b.isControlled = false
+				b.mu.Unlock()
+				hadTabs = false
+			}
+			continue
+		}
+
+		var tabs []map[string]any
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		_ = json.Unmarshal(body, &tabs)
+
+		var pageTabs int
+		for _, t := range tabs {
+			if tType, _ := t["type"].(string); tType == "page" || tType == "" {
+				pageTabs++
+			}
+		}
+
+		if pageTabs > 0 {
+			hadTabs = true
+		} else if hadTabs && pageTabs == 0 {
+			slog.Info("Last tab closed, hiding QEMU window and keeping VM idling in background")
+			if hwnd != 0 {
+				hideWindow(hwnd)
+				HideOverlayWindow()
+			}
+			b.mu.Lock()
+			b.isControlled = false
+			b.mu.Unlock()
+			hadTabs = false
+		}
+	}
 }
 
 func (b *BrowserVMTool) WaitForVM(ctx context.Context, timeout time.Duration) error {
@@ -373,6 +452,9 @@ func OpenBrowserWindowWithHost(host string) error {
 			setWindowPos.Call(hwnd, ^uintptr(0), x, y, w, h, 0x0040) // HWND_TOPMOST | SWP_SHOWWINDOW
 			bringWindowToTop.Call(hwnd)
 			setForegroundWindow.Call(hwnd)
+
+			// Attach hover-sensitive Take Control overlay
+			ShowPiPOverlayWindow(int(x), int(y), int(w), int(h))
 			return nil
 		}
 	}
@@ -410,13 +492,13 @@ func ResizeBrowserWindow(size string) {
 	}
 
 	if size == "full" {
-		// Take Control: unlock interactions, resize to 1920x1080, center on screen
+		// Take Control: unlock interactions, resize to 1280x800 (1:1 native guest res), center on screen
 		vm.mu.Lock()
 		vm.isControlled = true
 		vm.mu.Unlock()
 
-		w := uintptr(1920)
-		h := uintptr(1080)
+		w := uintptr(1280)
+		h := uintptr(800)
 		if w > sw {
 			w = sw
 		}
@@ -433,6 +515,15 @@ func ResizeBrowserWindow(size string) {
 		showWindow.Call(hwnd, 5) // SW_SHOW
 		setWindowPos.Call(hwnd, ^uintptr(0), x, y, w, h, 0x0040)
 		setForegroundWindow.Call(hwnd)
+
+		// Show bottom-center pill button overlay to Return to Agent
+		ShowExpandedOverlayWindow(int(x), int(y), int(w), int(h))
+	} else if size == "close" || size == "hide" {
+		hideWindow(hwnd)
+		HideOverlayWindow()
+		vm.mu.Lock()
+		vm.isControlled = false
+		vm.mu.Unlock()
 	} else {
 		// Return Control to agent: lock interactions, shrink to 480x300, pin to bottom-right
 		vm.mu.Lock()
@@ -450,6 +541,9 @@ func ResizeBrowserWindow(size string) {
 		// Shrink and pin topmost
 		showWindow.Call(hwnd, 5)
 		setWindowPos.Call(hwnd, ^uintptr(0), x, y, w, h, 0x0040) // HWND_TOPMOST
+
+		// Restore hover PiP overlay
+		ShowPiPOverlayWindow(int(x), int(y), int(w), int(h))
 	}
 }
 
