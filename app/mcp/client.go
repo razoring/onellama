@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 
@@ -345,6 +346,22 @@ func StartManager(registry *tools.Registry) error {
 		for _, t := range toolsRes.Tools {
 			// Prefix tool name with server name to avoid collisions
 			prefixedName := fmt.Sprintf("%s_%s", name, t.Name)
+
+			// Unify playwright tools to browser_ prefix
+			if name == "playwright" {
+				if strings.Contains(t.Name, "screenshot") {
+					// Skip screenshot tools, they are overridden by our custom browser_vm implementation
+					continue
+				}
+				if strings.HasPrefix(t.Name, "playwright_") {
+					prefixedName = strings.Replace(t.Name, "playwright_", "browser_", 1)
+				} else if strings.HasPrefix(t.Name, "browser_") {
+					prefixedName = t.Name
+				} else {
+					prefixedName = "browser_" + t.Name
+				}
+			}
+
 			mcpTool := &MCPTool{
 				client:      client,
 				name:        t.Name, // Keep original name for execution

@@ -79,6 +79,20 @@ type WNDCLASSEXW struct {
 	HIconSm       uintptr
 }
 
+type POINT struct {
+	X, Y int32
+}
+
+var (
+	isDragging      bool
+	dragStartCursor struct{ x, y int32 }
+	dragStartWindow struct{ x, y int }
+)
+
+const (
+	WM_TIMER = 0x0113
+)
+
 func initOverlayWindow() {
 	overlayInitOnce.Do(func() {
 		go func() {
@@ -92,6 +106,7 @@ func initOverlayWindow() {
 			translateMessage := user32.NewProc("TranslateMessage")
 			dispatchMessage := user32.NewProc("DispatchMessageW")
 			loadCursor := user32.NewProc("LoadCursorW")
+			setTimer := user32.NewProc("SetTimer")
 
 			cursor, _, _ := loadCursor.Call(0, uintptr(32512)) // IDC_ARROW
 
@@ -105,14 +120,8 @@ func initOverlayWindow() {
 				case WM_PAINT:
 					paintOverlay(hwnd)
 					return 0
-				case WM_MOUSEMOVE:
-					handleMouseMove(hwnd)
-					return 0
-				case WM_MOUSELEAVE:
-					handleMouseLeave(hwnd)
-					return 0
-				case WM_LBUTTONUP:
-					handleMouseClick()
+				case WM_TIMER:
+					handleTimer(hwnd)
 					return 0
 				}
 				ret, _, _ := defWindowProc.Call(hwnd, uintptr(msg), wParam, lParam)
@@ -139,11 +148,14 @@ func initOverlayWindow() {
 			)
 
 			if hwnd != 0 {
-				// ColorKey 0x00000000 (black) is 100% transparent and click-through
+				// ColorKey 0x00000000 (black) is transparent
 				setLayeredWindowAttributes.Call(hwnd, 0, 0, LWA_COLORKEY)
 				overlayMu.Lock()
 				overlayHWND = hwnd
 				overlayMu.Unlock()
+
+				// Start 30ms timer for cursor tracking, hover detection, and window dragging
+				setTimer.Call(hwnd, 1, 30, 0)
 			}
 
 			var msg [48]byte
@@ -157,6 +169,95 @@ func initOverlayWindow() {
 			}
 		}()
 	})
+}
+
+func handleTimer(hwnd uintptr) {
+	overlayMu.Lock()
+	mode := overlayMode
+	bounds := overlayBounds
+	wasHovered := overlayHovered
+	dragging := isDragging
+	overlayMu.Unlock()
+
+	user32 := syscall.NewLazyDLL("user32.dll")
+	getCursorPos := user32.NewProc("GetCursorPos")
+	getAsyncKeyState := user32.NewProc("GetAsyncKeyState")
+	invalidateRect := user32.NewProc("InvalidateRect")
+	setWindowPos := user32.NewProc("SetWindowPos")
+
+	var pt POINT
+	getCursorPos.Call(uintptr(unsafe.Pointer(&pt)))
+
+	keyState, _, _ := getAsyncKeyState.Call(1) // VK_LBUTTON
+	isLButtonDown := (keyState & 0x8000) != 0
+
+	if mode == "pip" {
+		inBounds := int(pt.X) >= bounds.x && int(pt.X) <= bounds.x+bounds.w &&
+			int(pt.Y) >= bounds.y && int(pt.Y) <= bounds.y+bounds.h
+
+		btnW := int32(140)
+		btnH := int32(34)
+		btnX := int32(bounds.x) + (int32(bounds.w)-btnW)/2
+		btnY := int32(bounds.y) + int32(bounds.h) - btnH - 18
+		inButton := pt.X >= btnX && pt.X <= btnX+btnW && pt.Y >= btnY && pt.Y <= btnY+btnH
+
+		if isLButtonDown {
+			if !dragging {
+				if wasHovered && inButton {
+					// User clicked "Take Control"
+					ResizeBrowserWindow("full")
+					return
+				} else if inBounds {
+					// User started dragging PiP
+					overlayMu.Lock()
+					isDragging = true
+					dragStartCursor = struct{ x, y int32 }{pt.X, pt.Y}
+					dragStartWindow = struct{ x, y int }{bounds.x, bounds.y}
+					overlayMu.Unlock()
+				}
+			} else {
+				// Dragging in progress: reposition both QEMU and Overlay
+				overlayMu.Lock()
+				dx := int(pt.X - dragStartCursor.x)
+				dy := int(pt.Y - dragStartCursor.y)
+				newX := dragStartWindow.x + dx
+				newY := dragStartWindow.y + dy
+				overlayBounds.x = newX
+				overlayBounds.y = newY
+				overlayMu.Unlock()
+
+				qHwnd := findQEMUHWND()
+				if qHwnd != 0 {
+					setWindowPos.Call(qHwnd, ^uintptr(0), uintptr(newX), uintptr(newY), uintptr(bounds.w), uintptr(bounds.h), SWP_SHOWWINDOW)
+				}
+				setWindowPos.Call(hwnd, ^uintptr(0), uintptr(newX), uintptr(newY), uintptr(bounds.w), uintptr(bounds.h), SWP_SHOWWINDOW)
+				invalidateRect.Call(hwnd, 0, 0)
+			}
+		} else {
+			if dragging {
+				overlayMu.Lock()
+				isDragging = false
+				overlayMu.Unlock()
+			}
+
+			// Update hover state
+			if inBounds != wasHovered {
+				overlayMu.Lock()
+				overlayHovered = inBounds
+				overlayMu.Unlock()
+				invalidateRect.Call(hwnd, 0, 0)
+			}
+		}
+	} else if mode == "expanded" {
+		btnW := int32(bounds.w)
+		btnH := int32(bounds.h)
+		inButton := int(pt.X) >= bounds.x && int(pt.X) <= bounds.x+int(btnW) &&
+			int(pt.Y) >= bounds.y && int(pt.Y) <= bounds.y+int(btnH)
+
+		if isLButtonDown && inButton {
+			ResizeBrowserWindow("pip")
+		}
+	}
 }
 
 func paintOverlay(hwnd uintptr) {
@@ -210,6 +311,17 @@ func paintOverlay(hwnd uintptr) {
 
 	if mode == "pip" {
 		if hovered {
+			// Subtle top drag handle
+			dragW := int32(60)
+			dragH := int32(4)
+			dragX := (rect.Right - dragW) / 2
+			dragY := int32(8)
+			handleBrush, _, _ := createSolidBrush.Call(0x00808080)
+			oldHBrush, _, _ := selectObject.Call(hdc, handleBrush)
+			roundRect.Call(hdc, uintptr(dragX), uintptr(dragY), uintptr(dragX+dragW), uintptr(dragY+dragH), 4, 4)
+			selectObject.Call(hdc, oldHBrush)
+			deleteObject.Call(handleBrush)
+
 			// Draw "Take Control" pill button inside PiP
 			btnW := int32(140)
 			btnH := int32(34)
@@ -239,62 +351,6 @@ func paintOverlay(hwnd uintptr) {
 		setTextColor.Call(hdc, 0x00E4E4E7)
 		txt, _ := syscall.UTF16PtrFromString("✕  Return to Agent")
 		drawText.Call(hdc, uintptr(unsafe.Pointer(txt)), uintptr(len("✕  Return to Agent")), uintptr(unsafe.Pointer(&btnRect)), DT_CENTER|DT_VCENTER|DT_SINGLELINE)
-	}
-}
-
-func handleMouseMove(hwnd uintptr) {
-	overlayMu.Lock()
-	mode := overlayMode
-	isHovered := overlayHovered
-	overlayMu.Unlock()
-
-	if mode == "pip" && !isHovered {
-		user32 := syscall.NewLazyDLL("user32.dll")
-		trackMouseEvent := user32.NewProc("TrackMouseEvent")
-		invalidateRect := user32.NewProc("InvalidateRect")
-
-		tme := TRACKMOUSEEVENT{
-			cbSize:    uint32(unsafe.Sizeof(TRACKMOUSEEVENT{})),
-			dwFlags:   TME_LEAVE,
-			hwndTrack: hwnd,
-		}
-		trackMouseEvent.Call(uintptr(unsafe.Pointer(&tme)))
-
-		overlayMu.Lock()
-		overlayHovered = true
-		overlayMu.Unlock()
-
-		invalidateRect.Call(hwnd, 0, 0)
-	}
-}
-
-func handleMouseLeave(hwnd uintptr) {
-	overlayMu.Lock()
-	mode := overlayMode
-	isHovered := overlayHovered
-	overlayMu.Unlock()
-
-	if mode == "pip" && isHovered {
-		user32 := syscall.NewLazyDLL("user32.dll")
-		invalidateRect := user32.NewProc("InvalidateRect")
-
-		overlayMu.Lock()
-		overlayHovered = false
-		overlayMu.Unlock()
-
-		invalidateRect.Call(hwnd, 0, 0)
-	}
-}
-
-func handleMouseClick() {
-	overlayMu.Lock()
-	mode := overlayMode
-	overlayMu.Unlock()
-
-	if mode == "pip" {
-		ResizeBrowserWindow("full")
-	} else if mode == "expanded" {
-		ResizeBrowserWindow("pip")
 	}
 }
 

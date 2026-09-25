@@ -237,7 +237,9 @@ func main() {
 
 	// Initialize tools registry
 	toolRegistry := tools.NewRegistry()
-	toolRegistry.Register(tools.NewBrowserVMTool())
+	browserVM := tools.NewBrowserVMTool()
+	toolRegistry.Register(browserVM)
+	tools.RegisterPlaywrightTools(toolRegistry, browserVM)
 	toolRegistry.Register(tools.NewSchedulerTool(st))
 	toolRegistry.Register(tools.NewSaveMemoryTool(st))
 	toolRegistry.Register(tools.NewUpdateMemoryTool(st))

@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 
@@ -72,8 +73,8 @@ func (r *Registry) SetWorkingDir(dir string) {
 func (r *Registry) Execute(ctx context.Context, name string, args map[string]any) (any, string, error) {
 	tool, ok := r.tools[name]
 	if !ok {
-		// Handle common playwright/browser tool aliases
-		if strings.HasPrefix(name, "playwright_") || strings.HasPrefix(name, "browser_") || strings.Contains(name, "browser_find") {
+		// Handle common browser tool aliases
+		if strings.HasPrefix(name, "browser_") || strings.Contains(name, "browser_find") {
 			if vmTool, hasVM := r.tools["browser_vm"]; hasVM {
 				adaptedArgs := make(map[string]any)
 				for k, v := range args {
@@ -86,15 +87,33 @@ func (r *Registry) Execute(ctx context.Context, name string, args map[string]any
 						query, _ = args["text"].(string)
 					}
 					adaptedArgs["action"] = "navigate"
-					adaptedArgs["url"] = "https://www.google.com/search?q=" + query
-				} else if strings.Contains(name, "navigate") {
+					adaptedArgs["url"] = "https://www.google.com/search?q=" + url.QueryEscape(query)
+				} else if strings.Contains(name, "back") {
+					adaptedArgs["action"] = "back"
+				} else if strings.Contains(name, "navigate") || strings.Contains(name, "open") {
 					adaptedArgs["action"] = "navigate"
 				} else if strings.Contains(name, "click") {
 					adaptedArgs["action"] = "click"
-				} else if strings.Contains(name, "type") {
+				} else if strings.Contains(name, "type") || strings.Contains(name, "fill") {
 					adaptedArgs["action"] = "type"
+				} else if strings.Contains(name, "select") {
+					adaptedArgs["action"] = "select"
+				} else if strings.Contains(name, "hover") {
+					adaptedArgs["action"] = "hover"
+				} else if strings.Contains(name, "drag") {
+					adaptedArgs["action"] = "drag"
+				} else if strings.Contains(name, "press") || strings.Contains(name, "key") {
+					adaptedArgs["action"] = "press"
+				} else if strings.Contains(name, "snapshot") || strings.Contains(name, "content") {
+					adaptedArgs["action"] = "snapshot"
+				} else if strings.Contains(name, "evaluate") || strings.Contains(name, "run_code") {
+					adaptedArgs["action"] = "evaluate"
+				} else if strings.Contains(name, "wait") {
+					adaptedArgs["action"] = "wait"
 				} else if strings.Contains(name, "screenshot") {
 					adaptedArgs["action"] = "screenshot"
+				} else if strings.Contains(name, "scroll") {
+					adaptedArgs["action"] = "scroll"
 				} else {
 					adaptedArgs["action"] = "navigate"
 				}
@@ -177,7 +196,16 @@ func (r *Registry) SystemPrompt() string {
 	sb.WriteString("     b. Immediately invoke the `Scheduler` tool with operation `schedule_create`.\n")
 	sb.WriteString("     c. For the scheduled `prompt`, write clear, detailed instructions for the agent to execute when triggered (including any browser navigation, search queries, or data extraction requested by the user, and an explicit instruction to re-schedule itself for subsequent runs if recurring).\n")
 	sb.WriteString("     d. Report to the user that the task has been scheduled along with the scheduled execution time.\n")
-	sb.WriteString("4. **Web Search & Live Data Browsing**: When asked to search the web, check live stock prices or news, or inspect web content, use `browser_vm` with `action: 'navigate'` and a target URL (e.g. `https://www.google.com/search?q=...` or `https://finance.yahoo.com/quote/...`). If Ollama cloud or `web_search` is unavailable, `browser_vm` is your dedicated browser tool.\n")
+	sb.WriteString("4. **Web Search & Browser Automation with Set-of-Marks (SoM)**:\n")
+	sb.WriteString("   - Ollama Cloud web search is DISABLED. NEVER invoke `web_search` or `web_fetch`. Always use the `browser_*` tools (`browser_navigate`, `browser_click`, `browser_type`, `browser_take_screenshot`, `browser_snapshot`, `browser_press_key`, `browser_select_option`, `browser_tabs`, etc.) for all web searching, browsing, shopping, and data extraction.\n")
+	sb.WriteString("   - The browser environment provides full interactive browsing with Set-of-Marks (SoM):\n")
+	sb.WriteString("     a. Start by navigating to any website or search engine using `browser_navigate` with `url: 'https://...'` (e.g. `https://www.google.com/search?q=...` or `https://www.canadacomputers.com`).\n")
+	sb.WriteString("     b. Every navigation or action returns interactive page elements marked with `[#ID]`, such as links, buttons, and input fields.\n")
+	sb.WriteString("     c. To click an element, invoke `browser_click` with `target: '#ID'` or `target: 'selector'` or `element: 'text'`.\n")
+	sb.WriteString("     d. To type into a search bar or text field, invoke `browser_type` with `target: '#ID'` and `text: '...'` (and optional `submit: true`).\n")
+	sb.WriteString("     e. To capture the full interactive Set-of-Marks view, invoke `browser_take_screenshot` or `browser_snapshot`.\n")
+	sb.WriteString("     f. To scroll down the page, invoke `browser_mouse_wheel` or `browser_press_key` with `key: 'PageDown'`.\n")
+	sb.WriteString("     g. Continue exploring through clicks and typing until you find the exact requested information.\n")
 	sb.WriteString("5. **Multi-Step Workflows**: For complex or multi-step requests, break down the goal and execute the first step immediately via tool call. Do not ask for user confirmation for routine steps unless clarification is strictly necessary.\n")
 	sb.WriteString("6. **Tool Precision**: Supply accurate, well-formed arguments matching each tool's schema.\n\n")
 

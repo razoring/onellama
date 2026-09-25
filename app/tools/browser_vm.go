@@ -128,9 +128,9 @@ func (b *BrowserVMTool) EnsureVMRunning() error {
 	case "darwin":
 		displayArgs = []string{"-display", "cocoa"}
 	case "linux":
-		displayArgs = []string{"-display", "gtk,zoom-to-fit=on,show-menubar=off,show-tabs=off"}
+		displayArgs = []string{"-display", "gtk,zoom-to-fit=on,show-menubar=off,show-tabs=off,window-close=off"}
 	default: // windows
-		displayArgs = []string{"-display", "gtk,zoom-to-fit=on,show-menubar=off,show-tabs=off,gl=off"}
+		displayArgs = []string{"-display", "gtk,zoom-to-fit=on,show-menubar=off,show-tabs=off,window-close=off,gl=off"}
 	}
 
 	args = append(args,
@@ -148,17 +148,23 @@ func (b *BrowserVMTool) EnsureVMRunning() error {
 	)
 	args = append(args, displayArgs...)
 
-	slog.Info("Starting bundled QEMU browser VM", "cmd", b.qemuExe)
+	slog.Info("Starting bundled QEMU browser VM in background", "cmd", b.qemuExe)
 	cmd := exec.Command(b.qemuExe, args...)
 	cmd.Dir = filepath.Dir(b.qemuExe)
+	if runtime.GOOS == "windows" {
+		cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+	}
 
 	if err := cmd.Start(); err != nil {
 		// Fallback to SDL if GTK failed
 		slog.Warn("Failed to start with primary display, falling back to SDL", "error", err)
 		args = args[:len(args)-len(displayArgs)]
-		args = append(args, "-display", "sdl")
+		args = append(args, "-display", "sdl,window-close=off")
 		cmd = exec.Command(b.qemuExe, args...)
 		cmd.Dir = filepath.Dir(b.qemuExe)
+		if runtime.GOOS == "windows" {
+			cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+		}
 		if errFallback := cmd.Start(); errFallback != nil {
 			return fmt.Errorf("failed to start QEMU: %w", errFallback)
 		}
@@ -168,15 +174,16 @@ func (b *BrowserVMTool) EnsureVMRunning() error {
 	// Start tab watchdog to monitor Chromium tabs and auto-hide when closed
 	go b.watchdogChromiumTabs()
 
-	// Hide window initially so it does not pop up in user's face
+	// Rapidly detect and hide window at boot so it never appears on taskbar or desktop
 	go func() {
-		for i := 0; i < 20; i++ {
-			time.Sleep(500 * time.Millisecond)
+		for i := 0; i < 100; i++ {
+			time.Sleep(30 * time.Millisecond)
 			hwnd := findQEMUHWND()
 			if hwnd != 0 {
 				b.mu.Lock()
 				b.qemuHWND = hwnd
 				b.mu.Unlock()
+				makeFrameless(hwnd)
 				hideWindow(hwnd)
 				break
 			}
@@ -390,6 +397,15 @@ func makeFrameless(hwnd uintptr) {
 		style &^= uintptr(0x00C00000 | 0x00040000 | 0x00020000 | 0x00010000 | 0x00080000 | 0x00800000)
 		style |= uintptr(0x80000000) // WS_POPUP
 		setWindowLong.Call(hwnd, uintptr(0xFFFFFFF0), style)
+
+		// Extended style: remove taskbar icon (WS_EX_APPWINDOW) and make tool window (WS_EX_TOOLWINDOW)
+		exStyle, _, _ := getWindowLong.Call(hwnd, uintptr(0xFFFFFFEC)) // GWL_EXSTYLE = -20
+		if exStyle != 0 {
+			exStyle &^= uintptr(0x00040000) // Strip WS_EX_APPWINDOW
+			exStyle |= uintptr(0x00000080)  // Add WS_EX_TOOLWINDOW
+			setWindowLong.Call(hwnd, uintptr(0xFFFFFFEC), exStyle)
+		}
+
 		setWindowPos.Call(hwnd, 0, 0, 0, 0, 0, 0x0001|0x0002|0x0004|0x0020) // SWP_NOSIZE | SWP_NOMOVE | SWP_NOZORDER | SWP_FRAMECHANGED
 	}
 }
@@ -552,7 +568,7 @@ func (b *BrowserVMTool) Name() string {
 }
 
 func (b *BrowserVMTool) Description() string {
-	return "Isolated browser automation engine running inside a packaged QEMU Linux virtual machine. Supports live web navigation, web searching, stock quotes, visual inspection, and native desktop handoff."
+	return "Isolated browser automation engine running inside a packaged QEMU Linux virtual machine. Supports live web navigation, Set-of-Marks (SoM) interactive browsing, clicking elements by markId, typing into inputs/search bars, scrolling, and desktop handoff."
 }
 
 func (b *BrowserVMTool) Schema() map[string]any {
@@ -561,15 +577,13 @@ func (b *BrowserVMTool) Schema() map[string]any {
 		"properties": map[string]any{
 			"action": map[string]any{
 				"type":        "string",
-				"enum":        []string{"navigate", "click", "type", "screenshot", "interact_mark", "handoff", "snapshot", "restore", "take_control", "return_control"},
-				"description": "Action to perform. Use 'navigate' to visit any website or search query URL (e.g. https://www.google.com/search?q=AMD+stock+price).",
+				"enum":        []string{"navigate", "click", "type", "scroll", "interact_mark", "screenshot", "handoff", "take_control", "return_control"},
+				"description": "Action to perform. Use 'navigate' to visit a URL or search. Use 'click' with markId to click a marked element. Use 'type' with markId and text to input text. Use 'scroll' to scroll down.",
 			},
-			"url":      map[string]any{"type": "string", "description": "Target URL to navigate to (e.g., https://www.google.com/search?q=AMD+stock+price or https://finance.yahoo.com/quote/AMD)."},
-			"selector": map[string]any{"type": "string", "description": "CSS selector for click/type actions."},
-			"text":     map[string]any{"type": "string", "description": "Text to type into element."},
-			"markId":   map[string]any{"type": "integer", "description": "Set-of-Mark ID to interact with."},
-			"with_som": map[string]any{"type": "boolean", "description": "Whether to return Set-of-Mark visual annotations with screenshot."},
-			"name":     map[string]any{"type": "string", "description": "Snapshot checkpoint name."},
+			"url":      map[string]any{"type": "string", "description": "Target URL to navigate to (e.g., https://www.canadacomputers.com or search URL)."},
+			"markId":   map[string]any{"type": "integer", "description": "Set-of-Mark numeric ID ([#1], [#2], etc.) of the element to click or type into."},
+			"text":     map[string]any{"type": "string", "description": "Text to type into an input field or search bar."},
+			"selector": map[string]any{"type": "string", "description": "Optional CSS selector fallback for click/type actions."},
 			"reason":   map[string]any{"type": "string", "description": "Reason for desktop handoff."},
 		},
 		"required": []string{"action"},
@@ -577,12 +591,177 @@ func (b *BrowserVMTool) Schema() map[string]any {
 }
 
 func (b *BrowserVMTool) Prompt() string {
-	return "Primary tool for web browsing, live web searching, stock quotes, news retrieval, and browser automation. Use action 'navigate' with a direct URL or search URL (e.g. https://www.google.com/search?q=AMD+stock+price) to inspect web content."
+	return `Primary tool for web browsing, live searching, and site navigation.
+Use action 'navigate' with a target URL to open any website or search page.
+Each action returns marked interactive elements with IDs [#1], [#2], etc.
+- To click an element, use action 'click' with 'markId' (e.g. markId: 3) or 'text'.
+- To type into a search bar or text field, use action 'type' with 'markId' (e.g. markId: 1) and 'text' (e.g. 'RTX 3060 12GB').
+- To scroll down, use action 'scroll'.`
+}
+
+func getActiveTab(ctx context.Context) (string, string, error) {
+	client := &http.Client{Timeout: 5 * time.Second}
+	respList, err := client.Get("http://127.0.0.1:9222/json/list")
+	if err != nil {
+		return "", "", err
+	}
+	defer respList.Body.Close()
+	bodyList, _ := io.ReadAll(respList.Body)
+	var tabs []map[string]any
+	_ = json.Unmarshal(bodyList, &tabs)
+	for _, t := range tabs {
+		if tType, _ := t["type"].(string); tType == "page" || tType == "" {
+			tabID, _ := t["id"].(string)
+			wsURL, _ := t["webSocketDebuggerUrl"].(string)
+			return tabID, wsURL, nil
+		}
+	}
+
+	// If no tab exists, create one
+	reqURL := "http://127.0.0.1:9222/json/new?https://www.google.com"
+	req, _ := http.NewRequestWithContext(ctx, http.MethodPut, reqURL, nil)
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", "", err
+	}
+	defer resp.Body.Close()
+	var tabInfo map[string]any
+	body, _ := io.ReadAll(resp.Body)
+	_ = json.Unmarshal(body, &tabInfo)
+	wsURL, _ := tabInfo["webSocketDebuggerUrl"].(string)
+	tabID, _ := tabInfo["id"].(string)
+	return tabID, wsURL, nil
+}
+
+func extractPageContentWithSoM(ctx context.Context, wsURL string) (string, error) {
+	js := `(function() {
+		try {
+			var marks = [];
+			var idCounter = 1;
+
+			document.querySelectorAll('.onellama-som-badge').forEach(function(b) { b.remove(); });
+
+			var selectors = 'a[href], button, input, textarea, select, [role="button"], [role="link"], [role="searchbox"]';
+			var elements = document.querySelectorAll(selectors);
+
+			for (var i = 0; i < elements.length; i++) {
+				var el = elements[i];
+				var rect = el.getBoundingClientRect();
+				var style = window.getComputedStyle(el);
+				if (rect.width > 4 && rect.height > 4 && style.visibility !== 'hidden' && style.display !== 'none' && rect.bottom > 0 && rect.top < window.innerHeight * 3) {
+					var id = idCounter++;
+					el.setAttribute('data-som-id', id);
+
+					var badge = document.createElement('div');
+					badge.className = 'onellama-som-badge';
+					badge.textContent = '#' + id;
+					badge.style.position = 'absolute';
+					badge.style.left = (window.scrollX + rect.left) + 'px';
+					badge.style.top = (window.scrollY + rect.top) + 'px';
+					badge.style.background = '#e11d48';
+					badge.style.color = '#ffffff';
+					badge.style.fontSize = '10px';
+					badge.style.fontWeight = 'bold';
+					badge.style.padding = '1px 3px';
+					badge.style.borderRadius = '3px';
+					badge.style.zIndex = '999999';
+					badge.style.pointerEvents = 'none';
+					document.body.appendChild(badge);
+
+					var tag = el.tagName.toLowerCase();
+					var text = (el.innerText || el.value || el.getAttribute('aria-label') || el.getAttribute('placeholder') || el.getAttribute('title') || '').trim().replace(/\s+/g, ' ');
+					if (text.length > 50) text = text.substring(0, 47) + '...';
+
+					var href = el.getAttribute('href') || '';
+					var typeAttr = el.getAttribute('type') || '';
+					var placeholder = el.getAttribute('placeholder') || '';
+
+					var desc = '[#' + id + '] <' + tag;
+					if (typeAttr) desc += ' type="' + typeAttr + '"';
+					if (placeholder) desc += ' placeholder="' + placeholder + '"';
+					if (href && href !== '#' && !href.startsWith('javascript:')) desc += ' href="' + href + '"';
+					desc += '>';
+					if (text) desc += ' "' + text + '"';
+
+					marks.push(desc);
+					if (marks.length >= 60) break;
+				}
+			}
+
+			var title = document.title || "";
+			var currentUrl = window.location.href;
+			var rawBody = document.body ? document.body.innerText : "";
+			var lines = rawBody.split('\n').map(function(l){ return l.trim(); }).filter(function(l){ return l.length > 0; }).slice(0, 40);
+
+			return JSON.stringify({
+				title: title,
+				url: currentUrl,
+				marks: marks,
+				summary: lines.join('\n')
+			});
+		} catch(err) {
+			return JSON.stringify({error: err.toString()});
+		}
+	})()`
+
+	res, err := evaluateInTab(ctx, wsURL, js)
+	if err != nil {
+		return "", err
+	}
+
+	var data struct {
+		Title   string   `json:"title"`
+		URL     string   `json:"url"`
+		Marks   []string `json:"marks"`
+		Summary string   `json:"summary"`
+		Error   string   `json:"error"`
+	}
+	_ = json.Unmarshal([]byte(res), &data)
+
+	if data.Error != "" {
+		return fmt.Sprintf("Error extracting page content: %s", data.Error), nil
+	}
+
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("CURRENT URL: %s\nPAGE TITLE: %s\n\n", data.URL, data.Title))
+
+	if len(data.Marks) > 0 {
+		sb.WriteString("INTERACTIVE ELEMENTS (Set-of-Marks):\n")
+		for _, m := range data.Marks {
+			sb.WriteString(m + "\n")
+		}
+		sb.WriteString("\n")
+	}
+
+	if data.Summary != "" {
+		sb.WriteString("PAGE CONTENT SUMMARY:\n")
+		sb.WriteString(data.Summary + "\n\n")
+	}
+
+	sb.WriteString("AVAILABLE NEXT ACTIONS:\n")
+	sb.WriteString("- Click element: action 'click' with 'markId' (e.g. markId: 3) or 'text'\n")
+	sb.WriteString("- Type in search/field: action 'type' with 'markId' (e.g. markId: 1) and 'text'\n")
+	sb.WriteString("- Scroll down: action 'scroll'\n")
+	sb.WriteString("- Direct navigation: action 'navigate' with 'url'\n")
+
+	return sb.String(), nil
 }
 
 func (b *BrowserVMTool) Execute(ctx context.Context, args map[string]any) (any, string, error) {
 	action, _ := args["action"].(string)
 	targetURL, _ := args["url"].(string)
+	markIdRaw, _ := args["markId"].(float64)
+	markId := int(markIdRaw)
+	if markId == 0 {
+		if idInt, ok := args["markId"].(int); ok {
+			markId = idInt
+		}
+	}
+	text, _ := args["text"].(string)
+	selector, _ := args["selector"].(string)
+	key, _ := args["key"].(string)
+	value, _ := args["value"].(string)
+	durationRaw, _ := args["duration"].(float64)
 
 	_ = b.EnsureVMRunning()
 
@@ -606,72 +785,384 @@ func (b *BrowserVMTool) Execute(ctx context.Context, args map[string]any) (any, 
 	case "navigate":
 		if targetURL == "" {
 			targetURL = "https://www.google.com"
+		} else if !strings.HasPrefix(targetURL, "http://") && !strings.HasPrefix(targetURL, "https://") {
+			if strings.Contains(targetURL, ".") && !strings.Contains(targetURL, " ") {
+				targetURL = "https://" + targetURL
+			} else {
+				targetURL = "https://www.google.com/search?q=" + url.QueryEscape(targetURL)
+			}
 		}
 
-		// Ensure VM is fully booted and CDP is listening before navigating
 		if err := b.WaitForVM(ctx, 30*time.Second); err != nil {
 			return nil, "", fmt.Errorf("browser VM not ready: %w", err)
 		}
 
-		// Navigate via Chromium CDP endpoint
-		reqURL := fmt.Sprintf("http://127.0.0.1:9222/json/new?%s", url.QueryEscape(targetURL))
-		req, _ := http.NewRequestWithContext(ctx, http.MethodPut, reqURL, nil)
-		client := &http.Client{Timeout: 10 * time.Second}
-		resp, err := client.Do(req)
+		tabID, wsURL, err := getActiveTab(ctx)
 		if err != nil {
-			return nil, "", fmt.Errorf("failed to navigate VM browser: %w", err)
+			return nil, "", fmt.Errorf("failed to get browser tab: %w", err)
 		}
-		defer resp.Body.Close()
 
-		var tabInfo map[string]any
-		body, _ := io.ReadAll(resp.Body)
-		_ = json.Unmarshal(body, &tabInfo)
+		expr := fmt.Sprintf(`window.location.href = %q;`, targetURL)
+		_, _ = evaluateInTab(ctx, wsURL, expr)
 
-		wsURL, _ := tabInfo["webSocketDebuggerUrl"].(string)
-		tabID, _ := tabInfo["id"].(string)
-
-		if tabID != "" {
-			// Activate newly created tab
-			actURL := fmt.Sprintf("http://127.0.0.1:9222/json/activate/%s", tabID)
-			actReq, _ := http.NewRequestWithContext(ctx, http.MethodPost, actURL, nil)
+		// Activate tab
+		client := &http.Client{Timeout: 5 * time.Second}
+		actURL := fmt.Sprintf("http://127.0.0.1:9222/json/activate/%s", tabID)
+		if actReq, err := http.NewRequestWithContext(ctx, http.MethodPost, actURL, nil); err == nil {
 			if actResp, err := client.Do(actReq); err == nil {
 				actResp.Body.Close()
 			}
 		}
 
-		// Wait 2.5s for webpage to load and render
 		time.Sleep(2500 * time.Millisecond)
 
-		var pageContent string
-		if wsURL != "" {
-			expr := `(function() {
-				var title = document.title || "";
-				var bodyText = document.body ? document.body.innerText : "";
-				return "PAGE TITLE: " + title + "\n\nPAGE CONTENT:\n" + bodyText;
-			})()`
-			content, evalErr := evaluateInTab(ctx, wsURL, expr)
-			if evalErr == nil && content != "" {
-				pageContent = content
-			}
+		pageContent, evalErr := extractPageContentWithSoM(ctx, wsURL)
+		if evalErr != nil {
+			return nil, "", fmt.Errorf("failed to inspect page: %w", evalErr)
 		}
 
-		if len(pageContent) > 3500 {
-			pageContent = pageContent[:3500] + "\n...[truncated]"
-		}
+		return pageContent, pageContent, nil
 
-		var msg string
-		if pageContent != "" {
-			msg = fmt.Sprintf("Successfully navigated VM browser to %s.\n\n%s", targetURL, pageContent)
-		} else {
-			msg = fmt.Sprintf("Navigated VM browser to %s successfully. Live viewport is active.", targetURL)
-		}
-
-		return msg, msg, nil
-
-	default:
-		// Ensure VM is ready for other actions as well
+	case "click":
 		if err := b.WaitForVM(ctx, 30*time.Second); err != nil {
 			return nil, "", fmt.Errorf("browser VM not ready: %w", err)
+		}
+
+		_, wsURL, err := getActiveTab(ctx)
+		if err != nil {
+			return nil, "", fmt.Errorf("failed to get browser tab: %w", err)
+		}
+
+		clickJS := fmt.Sprintf(`(function() {
+			var markId = %d;
+			var selector = %q;
+			var text = %q;
+			var el = null;
+			if (markId > 0) {
+				el = document.querySelector('[data-som-id="' + markId + '"]');
+			}
+			if (!el && selector) {
+				try { el = document.querySelector(selector); } catch(e) {}
+			}
+			if (!el && text) {
+				var all = document.querySelectorAll('a, button, input, span, div, h1, h2, h3, h4, p');
+				for (var i = 0; i < all.length; i++) {
+					if (all[i].innerText && all[i].innerText.trim().toLowerCase() === text.toLowerCase()) {
+						el = all[i];
+						break;
+					}
+				}
+			}
+			if (el) {
+				el.scrollIntoView({behavior: 'smooth', block: 'center'});
+				el.focus();
+				el.click();
+				return "OK";
+			}
+			return "NOT_FOUND";
+		})()`, markId, selector, text)
+
+		res, _ := evaluateInTab(ctx, wsURL, clickJS)
+		time.Sleep(2500 * time.Millisecond)
+
+		pageContent, _ := extractPageContentWithSoM(ctx, wsURL)
+		msg := fmt.Sprintf("Click result (%s):\n\n%s", res, pageContent)
+		return msg, msg, nil
+
+	case "type":
+		if err := b.WaitForVM(ctx, 30*time.Second); err != nil {
+			return nil, "", fmt.Errorf("browser VM not ready: %w", err)
+		}
+
+		_, wsURL, err := getActiveTab(ctx)
+		if err != nil {
+			return nil, "", fmt.Errorf("failed to get browser tab: %w", err)
+		}
+
+		typeJS := fmt.Sprintf(`(function() {
+			var markId = %d;
+			var selector = %q;
+			var text = %q;
+			var el = null;
+			if (markId > 0) {
+				el = document.querySelector('[data-som-id="' + markId + '"]');
+			}
+			if (!el && selector) {
+				try { el = document.querySelector(selector); } catch(e) {}
+			}
+			if (!el) {
+				el = document.querySelector('input[type="text"], input[type="search"], input:not([type="hidden"]), textarea');
+			}
+			if (el) {
+				el.scrollIntoView({behavior: 'smooth', block: 'center'});
+				el.focus();
+				el.value = text;
+				el.dispatchEvent(new Event('input', {bubbles: true}));
+				el.dispatchEvent(new Event('change', {bubbles: true}));
+				if (el.form) {
+					el.form.submit();
+				} else {
+					el.dispatchEvent(new KeyboardEvent('keydown', {key: 'Enter', keyCode: 13, which: 13, bubbles: true}));
+					el.dispatchEvent(new KeyboardEvent('keyup', {key: 'Enter', keyCode: 13, which: 13, bubbles: true}));
+				}
+				return "OK";
+			}
+			return "NOT_FOUND";
+		})()`, markId, selector, text)
+
+		res, _ := evaluateInTab(ctx, wsURL, typeJS)
+		time.Sleep(2500 * time.Millisecond)
+
+		pageContent, _ := extractPageContentWithSoM(ctx, wsURL)
+		msg := fmt.Sprintf("Type result (%s):\n\n%s", res, pageContent)
+		return msg, msg, nil
+
+	case "scroll":
+		if err := b.WaitForVM(ctx, 30*time.Second); err != nil {
+			return nil, "", fmt.Errorf("browser VM not ready: %w", err)
+		}
+
+		_, wsURL, err := getActiveTab(ctx)
+		if err != nil {
+			return nil, "", fmt.Errorf("failed to get browser tab: %w", err)
+		}
+
+		_, _ = evaluateInTab(ctx, wsURL, `window.scrollBy(0, 600);`)
+		time.Sleep(1000 * time.Millisecond)
+
+		pageContent, _ := extractPageContentWithSoM(ctx, wsURL)
+		return pageContent, pageContent, nil
+
+	case "evaluate":
+		if err := b.WaitForVM(ctx, 30*time.Second); err != nil {
+			return nil, "", fmt.Errorf("browser VM not ready: %w", err)
+		}
+		_, wsURL, err := getActiveTab(ctx)
+		if err != nil {
+			return nil, "", fmt.Errorf("failed to get browser tab: %w", err)
+		}
+		script, _ := args["script"].(string)
+		if script == "" {
+			script, _ = args["expression"].(string)
+		}
+		res, err := evaluateInTab(ctx, wsURL, script)
+		if err != nil {
+			return nil, "", fmt.Errorf("evaluate failed: %w", err)
+		}
+		return res, fmt.Sprintf("Evaluation result:\n%v", res), nil
+
+	case "hover":
+		if err := b.WaitForVM(ctx, 30*time.Second); err != nil {
+			return nil, "", fmt.Errorf("browser VM not ready: %w", err)
+		}
+
+		_, wsURL, err := getActiveTab(ctx)
+		if err != nil {
+			return nil, "", fmt.Errorf("failed to get browser tab: %w", err)
+		}
+
+		hoverJS := fmt.Sprintf(`(function() {
+			var markId = %d;
+			var selector = %q;
+			var el = null;
+			if (markId > 0) {
+				el = document.querySelector('[data-som-id="' + markId + '"]');
+			}
+			if (!el && selector) {
+				try { el = document.querySelector(selector); } catch(e) {}
+			}
+			if (el) {
+				el.scrollIntoView({behavior: 'smooth', block: 'center'});
+				el.focus();
+				el.dispatchEvent(new MouseEvent('mouseover', {bubbles: true}));
+				el.dispatchEvent(new MouseEvent('mouseenter', {bubbles: true}));
+				return "OK";
+			}
+			return "NOT_FOUND";
+		})()`, markId, selector)
+
+		res, _ := evaluateInTab(ctx, wsURL, hoverJS)
+		time.Sleep(1500 * time.Millisecond)
+
+		pageContent, _ := extractPageContentWithSoM(ctx, wsURL)
+		msg := fmt.Sprintf("Hover result (%s):\n\n%s", res, pageContent)
+		return msg, msg, nil
+
+	case "screenshot":
+		if err := b.WaitForVM(ctx, 30*time.Second); err != nil {
+			return nil, "", fmt.Errorf("browser VM not ready: %w", err)
+		}
+		_, wsURL, err := getActiveTab(ctx)
+		if err != nil {
+			return nil, "", fmt.Errorf("failed to get browser tab: %w", err)
+		}
+		pageContent, _ := extractPageContentWithSoM(ctx, wsURL)
+		msg := fmt.Sprintf("Screenshot logic overriden, returning SoM DOM representation:\n\n%s", pageContent)
+		return msg, msg, nil
+
+	case "back":
+		if err := b.WaitForVM(ctx, 30*time.Second); err != nil {
+			return nil, "", fmt.Errorf("browser VM not ready: %w", err)
+		}
+		_, wsURL, err := getActiveTab(ctx)
+		if err != nil {
+			return nil, "", fmt.Errorf("failed to get browser tab: %w", err)
+		}
+		_, _ = evaluateInTab(ctx, wsURL, `window.history.back();`)
+		time.Sleep(2000 * time.Millisecond)
+		pageContent, _ := extractPageContentWithSoM(ctx, wsURL)
+		return pageContent, pageContent, nil
+
+	case "select":
+		if err := b.WaitForVM(ctx, 30*time.Second); err != nil {
+			return nil, "", fmt.Errorf("browser VM not ready: %w", err)
+		}
+		_, wsURL, err := getActiveTab(ctx)
+		if err != nil {
+			return nil, "", fmt.Errorf("failed to get browser tab: %w", err)
+		}
+		selectJS := fmt.Sprintf(`(function() {
+			var markId = %d;
+			var selector = %q;
+			var val = %q;
+			var el = null;
+			if (markId > 0) { el = document.querySelector('[data-som-id="' + markId + '"]'); }
+			if (!el && selector) { try { el = document.querySelector(selector); } catch(e) {} }
+			if (!el) { el = document.querySelector('select'); }
+			if (el) {
+				el.scrollIntoView({behavior: 'smooth', block: 'center'});
+				el.focus();
+				el.value = val;
+				for (var i = 0; i < el.options.length; i++) {
+					if (el.options[i].value === val || el.options[i].text.trim().toLowerCase() === val.toLowerCase()) {
+						el.selectedIndex = i;
+						break;
+					}
+				}
+				el.dispatchEvent(new Event('input', {bubbles: true}));
+				el.dispatchEvent(new Event('change', {bubbles: true}));
+				return "OK";
+			}
+			return "NOT_FOUND";
+		})()`, markId, selector, value)
+		res, _ := evaluateInTab(ctx, wsURL, selectJS)
+		time.Sleep(1500 * time.Millisecond)
+		pageContent, _ := extractPageContentWithSoM(ctx, wsURL)
+		msg := fmt.Sprintf("Select result (%s):\n\n%s", res, pageContent)
+		return msg, msg, nil
+
+	case "press":
+		if err := b.WaitForVM(ctx, 30*time.Second); err != nil {
+			return nil, "", fmt.Errorf("browser VM not ready: %w", err)
+		}
+		_, wsURL, err := getActiveTab(ctx)
+		if err != nil {
+			return nil, "", fmt.Errorf("failed to get browser tab: %w", err)
+		}
+		if key == "" {
+			key = "Enter"
+		}
+		pressJS := fmt.Sprintf(`(function() {
+			var markId = %d;
+			var selector = %q;
+			var k = %q;
+			var el = document.activeElement || document.body;
+			if (markId > 0) {
+				var target = document.querySelector('[data-som-id="' + markId + '"]');
+				if (target) el = target;
+			} else if (selector) {
+				try { var target = document.querySelector(selector); if (target) el = target; } catch(e) {}
+			}
+			el.focus();
+			el.dispatchEvent(new KeyboardEvent('keydown', {key: k, bubbles: true}));
+			el.dispatchEvent(new KeyboardEvent('keyup', {key: k, bubbles: true}));
+			return "OK";
+		})()`, markId, selector, key)
+		res, _ := evaluateInTab(ctx, wsURL, pressJS)
+		time.Sleep(1500 * time.Millisecond)
+		pageContent, _ := extractPageContentWithSoM(ctx, wsURL)
+		msg := fmt.Sprintf("Press key result (%s):\n\n%s", res, pageContent)
+		return msg, msg, nil
+
+	case "drag":
+		if err := b.WaitForVM(ctx, 30*time.Second); err != nil {
+			return nil, "", fmt.Errorf("browser VM not ready: %w", err)
+		}
+		_, wsURL, err := getActiveTab(ctx)
+		if err != nil {
+			return nil, "", fmt.Errorf("failed to get browser tab: %w", err)
+		}
+		dragJS := fmt.Sprintf(`(function() {
+			var markId = %d;
+			var selector = %q;
+			var el = null;
+			if (markId > 0) { el = document.querySelector('[data-som-id="' + markId + '"]'); }
+			if (!el && selector) { try { el = document.querySelector(selector); } catch(e) {} }
+			if (el) {
+				el.dispatchEvent(new MouseEvent('mousedown', {bubbles: true}));
+				el.dispatchEvent(new MouseEvent('mousemove', {bubbles: true, clientX: 100, clientY: 100}));
+				el.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}));
+				return "OK";
+			}
+			return "NOT_FOUND";
+		})()`, markId, selector)
+		res, _ := evaluateInTab(ctx, wsURL, dragJS)
+		time.Sleep(1500 * time.Millisecond)
+		pageContent, _ := extractPageContentWithSoM(ctx, wsURL)
+		msg := fmt.Sprintf("Drag result (%s):\n\n%s", res, pageContent)
+		return msg, msg, nil
+
+	case "snapshot":
+		if err := b.WaitForVM(ctx, 30*time.Second); err != nil {
+			return nil, "", fmt.Errorf("browser VM not ready: %w", err)
+		}
+		_, wsURL, err := getActiveTab(ctx)
+		if err != nil {
+			return nil, "", fmt.Errorf("failed to get browser tab: %w", err)
+		}
+		pageContent, evalErr := extractPageContentWithSoM(ctx, wsURL)
+		if evalErr != nil {
+			return nil, "", fmt.Errorf("failed to get snapshot: %w", evalErr)
+		}
+		return pageContent, pageContent, nil
+
+	case "wait":
+		if err := b.WaitForVM(ctx, 30*time.Second); err != nil {
+			return nil, "", fmt.Errorf("browser VM not ready: %w", err)
+		}
+		_, wsURL, err := getActiveTab(ctx)
+		if err != nil {
+			return nil, "", fmt.Errorf("failed to get browser tab: %w", err)
+		}
+		durationMs := 2000
+		if durationRaw > 0 {
+			durationMs = int(durationRaw)
+		}
+		time.Sleep(time.Duration(durationMs) * time.Millisecond)
+		pageContent, _ := extractPageContentWithSoM(ctx, wsURL)
+		return pageContent, pageContent, nil
+
+	case "interact_mark":
+		if text != "" {
+			return b.Execute(ctx, map[string]any{
+				"action": "type",
+				"markId": markId,
+				"text":   text,
+			})
+		}
+		return b.Execute(ctx, map[string]any{
+			"action": "click",
+			"markId": markId,
+		})
+
+	default:
+		if err := b.WaitForVM(ctx, 30*time.Second); err != nil {
+			return nil, "", fmt.Errorf("browser VM not ready: %w", err)
+		}
+		_, wsURL, _ := getActiveTab(ctx)
+		if wsURL != "" {
+			pageContent, _ := extractPageContentWithSoM(ctx, wsURL)
+			return pageContent, pageContent, nil
 		}
 		msg := fmt.Sprintf("Executed browser action '%s' successfully in VM browser.", action)
 		return msg, msg, nil

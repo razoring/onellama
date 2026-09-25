@@ -86,6 +86,17 @@ func (w *WebSearch) Execute(ctx context.Context, args map[string]any) (any, stri
 
 	result, err := performWebSearch(ctx, queryStr, maxResults)
 	if err != nil {
+		vm := NewBrowserVMTool()
+		if vm != nil {
+			searchURL := "https://www.google.com/search?q=" + url.QueryEscape(queryStr)
+			_, text, vmErr := vm.Execute(ctx, map[string]any{
+				"action": "navigate",
+				"url":    searchURL,
+			})
+			if vmErr == nil {
+				return map[string]any{"query": queryStr, "results": text}, text, nil
+			}
+		}
 		return nil, "", err
 	}
 	for _, result := range result.Results {
