@@ -72,6 +72,36 @@ func (r *Registry) SetWorkingDir(dir string) {
 func (r *Registry) Execute(ctx context.Context, name string, args map[string]any) (any, string, error) {
 	tool, ok := r.tools[name]
 	if !ok {
+		// Handle common playwright/browser tool aliases
+		if strings.HasPrefix(name, "playwright_") || strings.HasPrefix(name, "browser_") || strings.Contains(name, "browser_find") {
+			if vmTool, hasVM := r.tools["browser_vm"]; hasVM {
+				adaptedArgs := make(map[string]any)
+				for k, v := range args {
+					adaptedArgs[k] = v
+				}
+
+				if strings.Contains(name, "find") || strings.Contains(name, "search") {
+					query, _ := args["query"].(string)
+					if query == "" {
+						query, _ = args["text"].(string)
+					}
+					adaptedArgs["action"] = "navigate"
+					adaptedArgs["url"] = "https://www.google.com/search?q=" + query
+				} else if strings.Contains(name, "navigate") {
+					adaptedArgs["action"] = "navigate"
+				} else if strings.Contains(name, "click") {
+					adaptedArgs["action"] = "click"
+				} else if strings.Contains(name, "type") {
+					adaptedArgs["action"] = "type"
+				} else if strings.Contains(name, "screenshot") {
+					adaptedArgs["action"] = "screenshot"
+				} else {
+					adaptedArgs["action"] = "navigate"
+				}
+
+				return vmTool.Execute(ctx, adaptedArgs)
+			}
+		}
 		return nil, "", fmt.Errorf("unknown tool: %s", name)
 	}
 
@@ -147,8 +177,9 @@ func (r *Registry) SystemPrompt() string {
 	sb.WriteString("     b. Immediately invoke the `Scheduler` tool with operation `schedule_create`.\n")
 	sb.WriteString("     c. For the scheduled `prompt`, write clear, detailed instructions for the agent to execute when triggered (including any browser navigation, search queries, or data extraction requested by the user, and an explicit instruction to re-schedule itself for subsequent runs if recurring).\n")
 	sb.WriteString("     d. Report to the user that the task has been scheduled along with the scheduled execution time.\n")
-	sb.WriteString("4. **Multi-Step Workflows**: For complex or multi-step requests, break down the goal and execute the first step immediately via tool call. Do not ask for user confirmation for routine steps unless clarification is strictly necessary.\n")
-	sb.WriteString("5. **Tool Precision**: Supply accurate, well-formed arguments matching each tool's schema.\n\n")
+	sb.WriteString("4. **Web Search & Live Data Browsing**: When asked to search the web, check live stock prices or news, or inspect web content, use `browser_vm` with `action: 'navigate'` and a target URL (e.g. `https://www.google.com/search?q=...` or `https://finance.yahoo.com/quote/...`). If Ollama cloud or `web_search` is unavailable, `browser_vm` is your dedicated browser tool.\n")
+	sb.WriteString("5. **Multi-Step Workflows**: For complex or multi-step requests, break down the goal and execute the first step immediately via tool call. Do not ask for user confirmation for routine steps unless clarification is strictly necessary.\n")
+	sb.WriteString("6. **Tool Precision**: Supply accurate, well-formed arguments matching each tool's schema.\n\n")
 
 	if r != nil && len(r.tools) > 0 {
 		toolPrompts := make([]string, 0)

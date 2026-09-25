@@ -44,6 +44,28 @@ export interface IntegrationStatus {
 
 export type IntegrationStatuses = IntegrationStatus[];
 
+export async function openBrowserWindow(): Promise<void> {
+  try {
+    await fetch(`${API_BASE}/api/v1/browser/open`, {
+      method: "POST",
+      credentials: "include",
+    });
+  } catch (err) {
+    console.error("Failed to open browser:", err);
+  }
+}
+
+export async function resizeBrowserWindow(size: "full" | "pip"): Promise<void> {
+  try {
+    await fetch(`${API_BASE}/api/v1/browser/resize?size=${size}`, {
+      method: "POST",
+      credentials: "include",
+    });
+  } catch (err) {
+    console.error("Failed to resize browser:", err);
+  }
+}
+
 export async function getIntegrationStatuses(): Promise<IntegrationStatuses> {
   const response = await fetch(`${API_BASE}/api/v1/integrations`);
   if (!response.ok) {

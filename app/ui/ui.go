@@ -301,6 +301,15 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /api/v1/mcp", handle(s.saveMCP))
 	mux.Handle("GET /api/v1/tools/pending", handle(s.getPendingToolPrompt))
 	mux.Handle("POST /api/v1/tools/respond", handle(s.respondToolPrompt))
+	mux.HandleFunc("POST /api/v1/browser/open", func(w http.ResponseWriter, r *http.Request) {
+		s.openBrowserHandler(w, r)
+	})
+	mux.HandleFunc("GET /api/v1/browser/pip", func(w http.ResponseWriter, r *http.Request) {
+		s.browserPipHandler(w, r)
+	})
+	mux.HandleFunc("POST /api/v1/browser/resize", func(w http.ResponseWriter, r *http.Request) {
+		s.browserResizeHandler(w, r)
+	})
 
 	mux.Handle("GET /api/v1/scheduled", handle(s.listScheduledTasks))
 	mux.Handle("PUT /api/v1/scheduled/{id}", handle(s.updateScheduledTask))
@@ -335,6 +344,113 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("DELETE /", s.appHandler())
 
 	return mux
+}
+
+func (s *Server) openBrowserHandler(w http.ResponseWriter, r *http.Request) error {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "*")
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusOK)
+		return nil
+	}
+	if err := tools.OpenBrowserWindowWithHost(r.Host); err != nil {
+		slog.Error("failed to open browser window", "error", err)
+	}
+	w.WriteHeader(http.StatusOK)
+	return json.NewEncoder(w).Encode(map[string]any{"success": true})
+}
+
+func (s *Server) browserResizeHandler(w http.ResponseWriter, r *http.Request) error {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "*")
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusOK)
+		return nil
+	}
+	size := r.URL.Query().Get("size")
+	tools.ResizeBrowserWindow(size)
+	w.WriteHeader(http.StatusOK)
+	return json.NewEncoder(w).Encode(map[string]any{"success": true})
+}
+
+func (s *Server) browserPipHandler(w http.ResponseWriter, r *http.Request) error {
+	targetURL := r.URL.Query().Get("url")
+	if targetURL == "" {
+		targetURL = "https://www.google.com"
+	}
+
+	html := fmt.Sprintf(`<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Browser Preview</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%%; height: 100%%; overflow: hidden; background: #09090b; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  #container { position: relative; width: 100%%; height: 100%%; display: flex; flex-direction: column; }
+  #frame { width: 100%%; height: 100%%; border: none; flex: 1; }
+  #glass-overlay { position: absolute; inset: 0; z-index: 1000; background: rgba(0,0,0,0.03); cursor: default; }
+  #control-btn {
+    position: fixed; top: 12px; right: 12px; z-index: 2000;
+    display: inline-flex; align-items: center; gap: 6px;
+    background: rgba(24, 24, 27, 0.88); backdrop-filter: blur(8px);
+    color: #e4e4e7; border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 9999px; padding: 6px 14px; font-size: 11px; font-weight: 600;
+    cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    user-select: none;
+  }
+  #control-btn:hover {
+    background: rgba(39, 39, 42, 0.98);
+    color: #ffffff;
+    border-color: rgba(255, 255, 255, 0.3);
+    transform: scale(1.02);
+  }
+</style>
+</head>
+<body>
+<div id="container">
+  <div id="glass-overlay"></div>
+  <button id="control-btn" onclick="toggleControl()">
+    <svg id="btn-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+      <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+    </svg>
+    <span id="btn-text">Take Control</span>
+  </button>
+  <iframe id="frame" src="%s"></iframe>
+</div>
+<script>
+  let isUnlocked = false;
+  function toggleControl() {
+    isUnlocked = !isUnlocked;
+    const overlay = document.getElementById('glass-overlay');
+    const text = document.getElementById('btn-text');
+    const icon = document.getElementById('btn-icon');
+    if (isUnlocked) {
+      overlay.style.display = 'none';
+      text.innerText = 'Return to agent';
+      icon.innerHTML = '<polyline points="9 14 4 9 9 4"></polyline><path d="M20 20v-7a4 4 0 0 0-4-4H4"></path>';
+      window.resizeTo(1280, 800);
+      fetch('/api/v1/browser/resize?size=full', { method: 'POST' }).catch(() => {});
+    } else {
+      overlay.style.display = 'block';
+      text.innerText = 'Take Control';
+      icon.innerHTML = '<rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path>';
+      window.resizeTo(480, 300);
+      fetch('/api/v1/browser/resize?size=small', { method: 'POST' }).catch(() => {});
+    }
+  }
+</script>
+</body>
+</html>`, targetURL)
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	_, err := w.Write([]byte(html))
+	return err
 }
 
 func (s *Server) getIntegrationStatuses(w http.ResponseWriter, _ *http.Request) error {

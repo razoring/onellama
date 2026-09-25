@@ -2,7 +2,11 @@ taskkill /F /T /IM msedgewebview2.exe
 taskkill /F /T /IM app.exe
 taskkill /F /T /IM go.exe
 taskkill /F /T /IM ollama.exe
+taskkill /F /T /IM qemu-system-x86_64.exe
 cd c:\Users\conta\OneDrive\Documents\Personal\Projects\Coding\onellama\app\ui\app
 npm run build
 cd c:\Users\conta\OneDrive\Documents\Personal\Projects\Coding\onellama
 go run -a ./app/cmd/app
+
+
+cd c:\Users\conta\OneDrive\Documents\Personal\Projects\Coding\onellama\app\ui\app; npm run build; cd c:\Users\conta\OneDrive\Documents\Personal\Projects\Coding\onellama\; go run -a ./app/cmd/app

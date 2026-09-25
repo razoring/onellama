@@ -4,6 +4,8 @@ import StreamingMarkdownContent from "./StreamingMarkdownContent";
 import { ImageThumbnail } from "./ImageThumbnail";
 import { isImageFile } from "@/utils/imageUtils";
 import CopyButton from "./CopyButton";
+import { BrowserToolCallContainer } from "./BrowserToolCallContainer";
+import { openBrowserWindow } from "@/api";
 import React, { useState, useMemo, useRef } from "react";
 
 const Message = React.memo(
@@ -576,6 +578,24 @@ function ToolCallDisplay({
           &#8230;
         </div>
       </div>
+    );
+  }
+
+  if (toolCall.function.name === "browser_vm") {
+    let parsedArgs: any = null;
+    try {
+      parsedArgs = typeof toolCall.function.arguments === "string" ? JSON.parse(toolCall.function.arguments) : toolCall.function.arguments;
+    } catch {
+      parsedArgs = toolCall.function.arguments;
+    }
+    return (
+      <BrowserToolCallContainer
+        toolCall={{
+          name: toolCall.function.name,
+          arguments: parsedArgs,
+        }}
+        onFocusWindow={() => openBrowserWindow()}
+      />
     );
   }
 
