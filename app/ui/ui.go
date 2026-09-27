@@ -1028,6 +1028,9 @@ func (s *Server) chat(w http.ResponseWriter, r *http.Request) error {
 
 	_, cancelLoading := context.WithCancel(ctx)
 	loading := false
+	defer func() {
+		_ = tools.ResumeBrowserVM()
+	}()
 
 	c := s.inferenceClient()
 
@@ -1171,6 +1174,7 @@ func (s *Server) chat(w http.ResponseWriter, r *http.Request) error {
 	var pendingAssistantToolCalls []store.ToolCall
 
 	passNum := 1
+	var lastMetrics api.Metrics
 
 	for {
 		var toolsExecuted bool
@@ -1221,12 +1225,18 @@ func (s *Server) chat(w http.ResponseWriter, r *http.Request) error {
 				fullSystemPrompt += "\n"
 			}
 		}
-		chatReq, err := s.buildChatRequest(reqChat, req.Model, thinkValue, availableTools, settings.OutputLength, fullSystemPrompt)
+		chatReq, err := s.buildChatRequest(reqChat, req.Model, thinkValue, availableTools, settings.OutputLength, settings.ContextLength, fullSystemPrompt)
 		if err != nil {
 			return err
 		}
 
+		_ = tools.PauseBrowserVM()
+		defer tools.ResumeBrowserVM()
+
 		err = c.Chat(ctx, chatReq, func(res api.ChatResponse) error {
+			if res.Done {
+				lastMetrics = res.Metrics
+			}
 			if loading {
 				// Remove the loading indicator on first token
 				cancelLoading()
@@ -1251,6 +1261,10 @@ func (s *Server) chat(w http.ResponseWriter, r *http.Request) error {
 
 			if len(res.Message.ToolCalls) > 0 {
 				event = EventToolCall
+			}
+
+			if event == EventToolCall {
+				_ = tools.ResumeBrowserVM()
 			}
 
 			if event == EventToolCall && thinkingTimeStart != nil && thinkingTimeEnd == nil {
@@ -1516,7 +1530,20 @@ func (s *Server) chat(w http.ResponseWriter, r *http.Request) error {
 		}
 	}
 
-	json.NewEncoder(w).Encode(responses.ChatEvent{EventName: "done"})
+	doneEvent := responses.ChatEvent{EventName: "done"}
+	if lastMetrics.EvalCount > 0 {
+		evalCount := lastMetrics.EvalCount
+		evalDurationMs := lastMetrics.EvalDuration.Milliseconds()
+		doneEvent.EvalCount = &evalCount
+		doneEvent.EvalDurationMs = &evalDurationMs
+	}
+	if lastMetrics.PromptEvalCount > 0 {
+		promptEvalCount := lastMetrics.PromptEvalCount
+		promptEvalDurationMs := lastMetrics.PromptEvalDuration.Milliseconds()
+		doneEvent.PromptEvalCount = &promptEvalCount
+		doneEvent.PromptEvalDurationMs = &promptEvalDurationMs
+	}
+	json.NewEncoder(w).Encode(doneEvent)
 	flusher.Flush()
 
 	if len(chat.Messages) > 0 {
@@ -2029,7 +2056,7 @@ func supportsBrowserTools(model string) bool {
 }
 
 // buildChatRequest converts store.Chat to api.ChatRequest
-func (s *Server) buildChatRequest(chat *store.Chat, model string, think any, availableTools []map[string]any, outputLength int, systemPrompt string) (*api.ChatRequest, error) {
+func (s *Server) buildChatRequest(chat *store.Chat, model string, think any, availableTools []map[string]any, outputLength int, contextLength int, systemPrompt string) (*api.ChatRequest, error) {
 	var msgs []api.Message
 	for _, m := range chat.Messages {
 		// Skip empty messages if present
@@ -2131,9 +2158,14 @@ func (s *Server) buildChatRequest(chat *store.Chat, model string, think any, ava
 		outputLength = 4096
 	}
 
-	req.Options = map[string]any{
+	options := map[string]any{
 		"num_predict": outputLength,
 	}
+	if contextLength > 0 {
+		options["num_ctx"] = contextLength
+	}
+
+	req.Options = options
 
 	if len(availableTools) > 0 {
 		tools := make(api.Tools, len(availableTools))

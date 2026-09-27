@@ -76,6 +76,12 @@ type ChatEvent struct {
 
 	// Tool state field from the new code
 	ToolState any `json:"toolState,omitempty"`
+
+	// Metrics fields
+	PromptEvalCount      *int   `json:"promptEvalCount,omitempty"`
+	PromptEvalDurationMs *int64 `json:"promptEvalDurationMs,omitempty"`
+	EvalCount            *int   `json:"evalCount,omitempty"`
+	EvalDurationMs       *int64 `json:"evalDurationMs,omitempty"`
 }
 
 // DownloadEvent is for model download progress

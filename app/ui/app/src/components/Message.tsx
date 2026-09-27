@@ -6,10 +6,13 @@ import { isImageFile } from "@/utils/imageUtils";
 import CopyButton from "./CopyButton";
 import { BrowserToolCallContainer } from "./BrowserToolCallContainer";
 import { openBrowserWindow } from "@/api";
+import { InformationCircleIcon } from "@heroicons/react/24/outline";
 import React, { useState, useMemo, useRef } from "react";
+import { useStreamingContext } from "@/contexts/StreamingContext";
 
 const Message = React.memo(
   ({
+    chatId,
     message,
     onEditMessage,
     messageIndex,
@@ -18,6 +21,7 @@ const Message = React.memo(
     browserToolResult,
     lastToolQuery,
   }: {
+    chatId?: string;
     message: MessageType;
     onEditMessage?: (content: string, index: number) => void;
     messageIndex?: number;
@@ -39,7 +43,9 @@ const Message = React.memo(
     } else {
       return (
         <OtherRoleMessage
+          chatId={chatId}
           message={message}
+          messageIndex={messageIndex}
           isStreaming={isStreaming}
           isFaded={isFaded}
           browserToolResult={browserToolResult}
@@ -50,6 +56,7 @@ const Message = React.memo(
   },
   (prevProps, nextProps) => {
     return (
+      prevProps.chatId === nextProps.chatId &&
       prevProps.message === nextProps.message &&
       prevProps.onEditMessage === nextProps.onEditMessage &&
       prevProps.messageIndex === nextProps.messageIndex &&
@@ -903,12 +910,16 @@ function UserMessage({
 }
 
 function OtherRoleMessage({
+  chatId,
+  messageIndex,
   message,
   isStreaming,
   isFaded,
   browserToolResult,
   lastToolQuery,
 }: {
+  chatId?: string;
+  messageIndex?: number;
   message: MessageType;
   previousMessage?: MessageType;
   isStreaming: boolean;
@@ -995,24 +1006,177 @@ function OtherRoleMessage({
         />
       )}
 
-      {!isStreaming &&
-        message.role === "assistant" &&
+      {message.role === "assistant" &&
         message.content &&
         message.content.trim() &&
         (!message.tool_calls || message.tool_calls.length === 0) &&
         !message.tool_call && (
-          <div className="-ml-1">
-            <CopyButton
-              content={message.content || ""}
-              copyRef={messageRef as React.RefObject<HTMLElement>}
-              removeClasses={["copy-button"]}
-              size="md"
-              showLabels={false}
-              className="copy-button z-10 text-neutral-500 dark:text-neutral-400"
-              title="Copy"
+          <div className="flex items-center gap-1 -ml-1">
+            {!isStreaming && (
+              <CopyButton
+                content={message.content || ""}
+                copyRef={messageRef as React.RefObject<HTMLElement>}
+                removeClasses={["copy-button"]}
+                size="md"
+                showLabels={false}
+                className="copy-button z-10 text-neutral-500 dark:text-neutral-400"
+                title="Copy"
+              />
+            )}
+            <TokenMetricsInfo
+              chatId={chatId}
+              messageIndex={messageIndex}
+              message={message}
+              isStreaming={isStreaming}
             />
           </div>
         )}
+    </div>
+  );
+}
+
+function TokenMetricsInfo({
+  chatId,
+  messageIndex,
+  message,
+  isStreaming,
+}: {
+  chatId?: string;
+  messageIndex?: number;
+  message: MessageType;
+  isStreaming: boolean;
+}) {
+  const { streamingMetrics } = useStreamingContext();
+  const [nowTime, setNowTime] = React.useState(() => Date.now());
+
+  React.useEffect(() => {
+    if (!isStreaming) return;
+    const interval = setInterval(() => {
+      setNowTime(Date.now());
+    }, 100);
+    return () => clearInterval(interval);
+  }, [isStreaming]);
+
+  const live =
+    (chatId ? streamingMetrics.get(chatId) : undefined) ||
+    (chatId && messageIndex !== undefined
+      ? streamingMetrics.get(`${chatId}:${messageIndex}`)
+      : undefined);
+
+  const metrics = useMemo(() => {
+    const msg = message as MessageType & {
+      promptEvalCount?: number;
+      promptEvalDurationMs?: number;
+      evalCount?: number;
+      evalDurationMs?: number;
+      streamStartTime?: number;
+      firstTokenTime?: number;
+      lastTokenTime?: number;
+      tokenCount?: number;
+    };
+
+    const streamStartTime = live?.streamStartTime ?? msg.streamStartTime;
+    const firstTokenTime = live?.firstTokenTime ?? msg.firstTokenTime;
+    const lastTokenTime = live?.lastTokenTime ?? msg.lastTokenTime;
+    const approxTokens = message.content
+      ? Math.max(1, Math.round(message.content.trim().length / 3.8))
+      : 0;
+    const tokenCount =
+      live?.tokenCount ?? msg.tokenCount ?? (approxTokens > 0 ? approxTokens : undefined);
+
+    let ttftMs: number | null = null;
+    let prefillSpeed: number | null = null;
+    let avgSpeed: number | null = null;
+
+    // TTFT
+    if (firstTokenTime && streamStartTime && firstTokenTime >= streamStartTime) {
+      ttftMs = firstTokenTime - streamStartTime;
+    } else if (live?.promptEvalDurationMs && live.promptEvalDurationMs > 0) {
+      ttftMs = live.promptEvalDurationMs;
+    } else if (msg.promptEvalDurationMs && msg.promptEvalDurationMs > 0) {
+      ttftMs = msg.promptEvalDurationMs;
+    } else if (isStreaming && streamStartTime && !firstTokenTime) {
+      ttftMs = Math.max(0, nowTime - streamStartTime);
+    }
+
+    // Prefill speed
+    const promptEvalCount = live?.promptEvalCount ?? msg.promptEvalCount;
+    const promptEvalDurationMs = live?.promptEvalDurationMs ?? msg.promptEvalDurationMs;
+    if (promptEvalCount && promptEvalDurationMs && promptEvalDurationMs > 0) {
+      prefillSpeed = (promptEvalCount / promptEvalDurationMs) * 1000;
+    } else if (ttftMs && ttftMs > 0) {
+      const promptTokens = live?.promptTokens ?? 10;
+      prefillSpeed = (promptTokens / ttftMs) * 1000;
+    }
+
+    // Avg generation speed
+    const evalCount = live?.evalCount ?? msg.evalCount;
+    const evalDurationMs = live?.evalDurationMs ?? msg.evalDurationMs;
+    if (evalCount && evalDurationMs && evalDurationMs > 0) {
+      avgSpeed = (evalCount / evalDurationMs) * 1000;
+    } else if (tokenCount && firstTokenTime) {
+      const endTime = isStreaming ? nowTime : (lastTokenTime || nowTime);
+      const durationSec = (endTime - firstTokenTime) / 1000;
+      if (durationSec > 0.05 && tokenCount > 1) {
+        avgSpeed = (tokenCount - 1) / durationSec;
+      } else if (durationSec > 0.05 && tokenCount === 1) {
+        avgSpeed = 1 / durationSec;
+      }
+    } else if (tokenCount && streamStartTime) {
+      const endTime = isStreaming ? nowTime : (lastTokenTime || nowTime);
+      const durationSec = (endTime - streamStartTime) / 1000;
+      if (durationSec > 0.05 && tokenCount > 0) {
+        avgSpeed = tokenCount / durationSec;
+      }
+    }
+
+    return { ttftMs, prefillSpeed, avgSpeed };
+  }, [live, message, isStreaming, nowTime]);
+
+  return (
+    <div className="relative group/metrics inline-flex items-center">
+      <button
+        type="button"
+        className="p-1 text-neutral-400 hover:text-neutral-600 dark:text-neutral-500 dark:hover:text-neutral-300 transition-colors focus:outline-2 outline-blue-500 rounded-md cursor-pointer"
+        title="Token Speed Metrics"
+        aria-label="Token Speed Metrics"
+      >
+        <InformationCircleIcon className="w-4 h-4 stroke-current" />
+      </button>
+      <div className="absolute bottom-full left-0 mb-1 hidden group-hover/metrics:block z-20 w-max rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-2.5 text-xs shadow-md text-neutral-700 dark:text-neutral-200 space-y-1">
+        <div className="flex justify-between gap-4">
+          <span className="text-neutral-500 dark:text-neutral-400">TTFT:</span>
+          <span className="font-mono font-medium">
+            {metrics.ttftMs !== null
+              ? metrics.ttftMs < 1000
+                ? `${metrics.ttftMs.toFixed(0)} ms`
+                : `${(metrics.ttftMs / 1000).toFixed(2)} s`
+              : isStreaming
+                ? "Calculating..."
+                : "N/A"}
+          </span>
+        </div>
+        <div className="flex justify-between gap-4">
+          <span className="text-neutral-500 dark:text-neutral-400">Prefill speed:</span>
+          <span className="font-mono font-medium">
+            {metrics.prefillSpeed !== null
+              ? `${metrics.prefillSpeed.toFixed(1)} tok/s`
+              : isStreaming
+                ? "Calculating..."
+                : "N/A"}
+          </span>
+        </div>
+        <div className="flex justify-between gap-4">
+          <span className="text-neutral-500 dark:text-neutral-400">Avg token speed:</span>
+          <span className="font-mono font-medium">
+            {metrics.avgSpeed !== null
+              ? `${metrics.avgSpeed.toFixed(1)} tok/s`
+              : isStreaming
+                ? "Calculating..."
+                : "N/A"}
+          </span>
+        </div>
+      </div>
     </div>
   );
 }

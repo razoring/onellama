@@ -5,7 +5,7 @@ import { Message } from "@/gotypes";
 import { useSelectedModel } from "./useSelectedModel";
 import { createQueryBatcher } from "./useQueryBatcher";
 import { useRefetchModels } from "./useModels";
-import { useStreamingContext } from "@/contexts/StreamingContext";
+import { useStreamingContext, type LiveTokenMetrics } from "@/contexts/StreamingContext";
 import { getModelCapabilities } from "@/api";
 import { useCloudStatus } from "./useCloudStatus";
 
@@ -214,6 +214,7 @@ export const useSendMessage = (chatId: string) => {
     setLoadingChats,
     setAbortControllers,
     setDownloadProgress,
+    setStreamingMetrics,
   } = useStreamingContext();
 
   const cleanupStreaming = (id: string) => {
@@ -335,6 +336,22 @@ export const useSendMessage = (chatId: string) => {
       let currentChatId = chatId;
       let isCancelled = false;
 
+      const streamStart = Date.now();
+      const promptTokens = Math.max(1, Math.round(message.trim().length / 3.8));
+      const initialMetrics: LiveTokenMetrics = {
+        streamStartTime: streamStart,
+        tokenCount: 0,
+        promptTokens,
+      };
+      setStreamingMetrics((prev) => {
+        const next = new Map(prev);
+        next.set(currentChatId, initialMetrics);
+        if (chatId !== currentChatId) {
+          next.set(chatId, initialMetrics);
+        }
+        return next;
+      });
+
       // Listen for abort signal to set cancelled flag
       abortController.signal.addEventListener("abort", () => {
         isCancelled = true;
@@ -371,6 +388,25 @@ export const useSendMessage = (chatId: string) => {
 
         switch (event.eventName) {
           case "chat": {
+            const now = Date.now();
+            setStreamingMetrics((prev) => {
+              const current = prev.get(currentChatId) || prev.get(chatId) || initialMetrics;
+              const firstTokenTime = current.firstTokenTime || (event.content ? now : undefined);
+              const tokenCount = event.content ? (current.tokenCount || 0) + 1 : (current.tokenCount || 0);
+              const updated: LiveTokenMetrics = {
+                ...current,
+                firstTokenTime,
+                lastTokenTime: event.content ? now : current.lastTokenTime,
+                tokenCount,
+              };
+              const next = new Map(prev);
+              next.set(currentChatId, updated);
+              if (chatId && chatId !== currentChatId) {
+                next.set(chatId, updated);
+              }
+              return next;
+            });
+
             // Update the current chat data with streaming content
             batcher.scheduleBatch((old: { chat: Chat } | undefined) => {
               if (!old) return old;
@@ -378,17 +414,19 @@ export const useSendMessage = (chatId: string) => {
               const existingMessages = old.chat.messages || [];
               const newMessages = [...existingMessages];
 
+              const now = Date.now();
               // Find or create the assistant message
               let lastMessage = newMessages[newMessages.length - 1];
               if (!lastMessage || lastMessage.role !== "assistant") {
-                newMessages.push(
-                  new Message({
-                    role: "assistant",
-                    content: "",
-                    thinking: "",
-                    model: effectiveModel.model,
-                  }),
-                );
+                const msg = new Message({
+                  role: "assistant",
+                  content: "",
+                  thinking: "",
+                  model: effectiveModel.model,
+                });
+                (msg as any).streamStartTime = now;
+                (msg as any).tokenCount = 0;
+                newMessages.push(msg);
                 lastMessage = newMessages[newMessages.length - 1];
               }
 
@@ -409,6 +447,20 @@ export const useSendMessage = (chatId: string) => {
                 if (event.thinkingTimeEnd) {
                   updatedMessage.thinkingTimeEnd = event.thinkingTimeEnd;
                 }
+                (updatedMessage as any).streamStartTime = (lastMessage as any).streamStartTime || now;
+                if (event.content) {
+                  if (!(lastMessage as any).firstTokenTime) {
+                    (updatedMessage as any).firstTokenTime = now;
+                  } else {
+                    (updatedMessage as any).firstTokenTime = (lastMessage as any).firstTokenTime;
+                  }
+                  (updatedMessage as any).lastTokenTime = now;
+                  (updatedMessage as any).tokenCount = ((lastMessage as any).tokenCount || 0) + 1;
+                } else {
+                  (updatedMessage as any).firstTokenTime = (lastMessage as any).firstTokenTime;
+                  (updatedMessage as any).lastTokenTime = (lastMessage as any).lastTokenTime;
+                  (updatedMessage as any).tokenCount = (lastMessage as any).tokenCount || 0;
+                }
                 newMessages[newMessages.length - 1] = updatedMessage;
               }
 
@@ -423,6 +475,25 @@ export const useSendMessage = (chatId: string) => {
             break;
           }
           case "thinking": {
+            const now = Date.now();
+            setStreamingMetrics((prev) => {
+              const current = prev.get(currentChatId) || prev.get(chatId) || initialMetrics;
+              const firstTokenTime = current.firstTokenTime || (event.thinking ? now : undefined);
+              const tokenCount = event.thinking ? (current.tokenCount || 0) + 1 : (current.tokenCount || 0);
+              const updated: LiveTokenMetrics = {
+                ...current,
+                firstTokenTime,
+                lastTokenTime: event.thinking ? now : current.lastTokenTime,
+                tokenCount,
+              };
+              const next = new Map(prev);
+              next.set(currentChatId, updated);
+              if (chatId && chatId !== currentChatId) {
+                next.set(chatId, updated);
+              }
+              return next;
+            });
+
             // Handle thinking content
             batcher.scheduleBatch((old: { chat: Chat } | undefined) => {
               if (!old) return old;
@@ -671,6 +742,24 @@ export const useSendMessage = (chatId: string) => {
               newMap.delete(effectiveModel.model);
               return newMap;
             });
+            setStreamingMetrics((prev) => {
+              const current = prev.get(currentChatId) || prev.get(chatId);
+              if (!current) return prev;
+              const next = new Map(prev);
+              const updated: LiveTokenMetrics = {
+                ...current,
+                lastTokenTime: current.lastTokenTime || Date.now(),
+                evalCount: (event as any).evalCount ?? current.evalCount,
+                evalDurationMs: (event as any).evalDurationMs ?? current.evalDurationMs,
+                promptEvalCount: (event as any).promptEvalCount ?? current.promptEvalCount,
+                promptEvalDurationMs: (event as any).promptEvalDurationMs ?? current.promptEvalDurationMs,
+              };
+              next.set(currentChatId, updated);
+              if (chatId && chatId !== currentChatId) {
+                next.set(chatId, updated);
+              }
+              return next;
+            });
             // Ensure chat is fresh for next fetch
             queryClient.invalidateQueries({
               queryKey: ["chat", currentChatId],
@@ -684,6 +773,14 @@ export const useSendMessage = (chatId: string) => {
               const newSet = new Set(prev);
               newSet.add(newId);
               return newSet;
+            });
+            setStreamingMetrics((prev) => {
+              const next = new Map(prev);
+              const existing = next.get(chatId) || next.get(currentChatId);
+              if (existing) {
+                next.set(newId, existing);
+              }
+              return next;
             });
             setAbortControllers((prev) => {
               const newMap = new Map(prev);

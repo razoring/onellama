@@ -43,7 +43,7 @@ func executeCDPCommand(ctx context.Context, wsURL string, method string, params 
 		return nil, err
 	}
 
-	conn.SetReadDeadline(time.Now().Add(10 * time.Second))
+	conn.SetReadDeadline(time.Now().Add(25 * time.Second))
 	for {
 		var resp struct {
 			ID     int            `json:"id"`

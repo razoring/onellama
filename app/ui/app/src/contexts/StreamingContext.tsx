@@ -14,6 +14,18 @@ export interface DownloadProgressInfo {
   timestamp: number;
 }
 
+export interface LiveTokenMetrics {
+  streamStartTime?: number;
+  firstTokenTime?: number;
+  lastTokenTime?: number;
+  tokenCount?: number;
+  promptTokens?: number;
+  promptEvalCount?: number;
+  promptEvalDurationMs?: number;
+  evalCount?: number;
+  evalDurationMs?: number;
+}
+
 interface StreamingContextType {
   streamingChatIds: Set<string>;
   setStreamingChatIds: Dispatch<SetStateAction<Set<string>>>;
@@ -23,6 +35,8 @@ interface StreamingContextType {
   setAbortControllers: Dispatch<SetStateAction<Map<string, AbortController>>>;
   downloadProgress: Map<string, DownloadProgressInfo>;
   setDownloadProgress: Dispatch<SetStateAction<Map<string, DownloadProgressInfo>>>;
+  streamingMetrics: Map<string, LiveTokenMetrics>;
+  setStreamingMetrics: Dispatch<SetStateAction<Map<string, LiveTokenMetrics>>>;
 }
 
 const StreamingContext = createContext<StreamingContextType | undefined>(
@@ -40,6 +54,9 @@ export function StreamingProvider({ children }: { children: ReactNode }) {
   const [downloadProgress, setDownloadProgress] = useState<
     Map<string, DownloadProgressInfo>
   >(new Map());
+  const [streamingMetrics, setStreamingMetrics] = useState<
+    Map<string, LiveTokenMetrics>
+  >(new Map());
 
   const contextValue = useMemo(
     () => ({
@@ -51,8 +68,16 @@ export function StreamingProvider({ children }: { children: ReactNode }) {
       setAbortControllers,
       downloadProgress,
       setDownloadProgress,
+      streamingMetrics,
+      setStreamingMetrics,
     }),
-    [streamingChatIds, loadingChats, abortControllers, downloadProgress],
+    [
+      streamingChatIds,
+      loadingChats,
+      abortControllers,
+      downloadProgress,
+      streamingMetrics,
+    ],
   );
 
   return (

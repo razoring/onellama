@@ -232,20 +232,30 @@ func handleTimer(hwnd uintptr) {
 		inBounds := int(pt.X) >= wLeft && int(pt.X) <= wRight &&
 			int(pt.Y) >= wTop && int(pt.Y) <= wBottom
 
+		closeSize := int32(24)
+		closeX := int32(wRight) - closeSize - 10
+		closeY := int32(wTop) + 10
+		inCloseBtn := pt.X >= closeX && pt.X <= closeX+closeSize &&
+			pt.Y >= closeY && pt.Y <= closeY+closeSize
+
 		btnW := int32(140)
 		btnH := int32(34)
 		btnX := int32(wLeft) + (int32(wWidth)-btnW)/2
-		btnY := int32(wTop) + int32(wHeight) - btnH - 18
-		inButton := pt.X >= btnX && pt.X <= btnX+btnW && pt.Y >= btnY && pt.Y <= btnY+btnH
+		btnY := int32(wTop) + (int32(wHeight)-btnH)/2
+		inTakeControlBtn := pt.X >= btnX && pt.X <= btnX+btnW && pt.Y >= btnY && pt.Y <= btnY+btnH
 
 		if isLButtonDown {
 			if !dragging {
-				if wasHovered && inButton {
-					// User clicked "Take Control"
+				if wasHovered && inCloseBtn {
+					// Clicked '✕' Close Button -> Hide QEMU preview
+					ResizeBrowserWindow("close")
+					return
+				} else if wasHovered && inTakeControlBtn {
+					// Clicked "Take control"
 					ResizeBrowserWindow("full")
 					return
 				} else if inBounds {
-					// User started dragging PiP
+					// Start dragging PiP
 					overlayMu.Lock()
 					isDragging = true
 					dragStartCursor = struct{ x, y int32 }{pt.X, pt.Y}
@@ -253,7 +263,7 @@ func handleTimer(hwnd uintptr) {
 					overlayMu.Unlock()
 				}
 			} else {
-				// Dragging in progress: reposition both QEMU and Overlay
+				// Dragging in progress
 				overlayMu.Lock()
 				dx := int(pt.X - dragStartCursor.x)
 				dy := int(pt.Y - dragStartCursor.y)
@@ -295,8 +305,43 @@ func handleTimer(hwnd uintptr) {
 		inButton := int(pt.X) >= bounds.x && int(pt.X) <= bounds.x+int(btnW) &&
 			int(pt.Y) >= bounds.y && int(pt.Y) <= bounds.y+int(btnH)
 
-		if isLButtonDown && inButton {
-			ResizeBrowserWindow("close")
+		if isLButtonDown {
+			if !dragging {
+				if inButton {
+					ResizeBrowserWindow("close")
+					return
+				} else {
+					overlayMu.Lock()
+					isDragging = true
+					dragStartCursor = struct{ x, y int32 }{pt.X, pt.Y}
+					dragStartWindow = struct{ x, y int }{wLeft, wTop}
+					overlayMu.Unlock()
+				}
+			} else {
+				overlayMu.Lock()
+				dx := int(pt.X - dragStartCursor.x)
+				dy := int(pt.Y - dragStartCursor.y)
+				newX := dragStartWindow.x + dx
+				newY := dragStartWindow.y + dy
+				overlayBounds.x = newX
+				overlayBounds.y = newY
+				overlayMu.Unlock()
+
+				qHwnd := findQEMUHWND()
+				if qHwnd != 0 {
+					setWindowPos.Call(qHwnd, ^uintptr(0), uintptr(newX), uintptr(newY), uintptr(wWidth), uintptr(wHeight), SWP_SHOWWINDOW)
+				}
+				setWindowPos.Call(hwnd, ^uintptr(0), uintptr(newX), uintptr(newY), uintptr(wWidth), uintptr(wHeight), SWP_SHOWWINDOW)
+				bringWindowToTop := user32.NewProc("BringWindowToTop")
+				bringWindowToTop.Call(hwnd)
+				invalidateRect.Call(hwnd, 0, 0)
+			}
+		} else {
+			if dragging {
+				overlayMu.Lock()
+				isDragging = false
+				overlayMu.Unlock()
+			}
 		}
 	}
 }
@@ -352,6 +397,11 @@ func paintOverlay(hwnd uintptr) {
 
 	if mode == "pip" {
 		if hovered {
+			// Darken viewport background on hover (RGB: 18, 18, 18 -> 0x00121212)
+			darkTintBrush, _, _ := createSolidBrush.Call(0x00121212)
+			fillRect.Call(hdc, uintptr(unsafe.Pointer(&rect)), darkTintBrush)
+			deleteObject.Call(darkTintBrush)
+
 			// Subtle top drag handle
 			dragW := int32(60)
 			dragH := int32(4)
@@ -363,22 +413,33 @@ func paintOverlay(hwnd uintptr) {
 			selectObject.Call(hdc, oldHBrush)
 			deleteObject.Call(handleBrush)
 
-			// Draw "Take Control" pill button inside PiP
+			// Top Right '✕' Close Button
+			closeSize := int32(24)
+			closeX := rect.Right - closeSize - 10
+			closeY := int32(10)
+			closeRect := RECT{Left: closeX, Top: closeY, Right: closeX + closeSize, Bottom: closeY + closeSize}
+
+			closeBgBrush, _, _ := createSolidBrush.Call(0x002A2A2A)
+			oldCBg, _, _ := selectObject.Call(hdc, closeBgBrush)
+			roundRect.Call(hdc, uintptr(closeX), uintptr(closeY), uintptr(closeX+closeSize), uintptr(closeY+closeSize), 12, 12)
+			selectObject.Call(hdc, oldCBg)
+			deleteObject.Call(closeBgBrush)
+
+			setTextColor.Call(hdc, 0x00FFFFFF)
+			xTxt, _ := syscall.UTF16PtrFromString("✕")
+			drawText.Call(hdc, uintptr(unsafe.Pointer(xTxt)), uintptr(len("✕")), uintptr(unsafe.Pointer(&closeRect)), DT_CENTER|DT_VCENTER|DT_SINGLELINE)
+
+			// Draw "Take control" text centered inside PiP
 			btnW := int32(140)
 			btnH := int32(34)
 			btnX := (rect.Right - btnW) / 2
-			btnY := rect.Bottom - btnH - 18
+			btnY := (rect.Bottom - btnH) / 2
 
 			btnRect := RECT{Left: btnX, Top: btnY, Right: btnX + btnW, Bottom: btnY + btnH}
-			blueBrush, _, _ := createSolidBrush.Call(0x00D97706) // Modern Blue RGB(6, 119, 217)
-			oldBrush, _, _ := selectObject.Call(hdc, blueBrush)
-			roundRect.Call(hdc, uintptr(btnX), uintptr(btnY), uintptr(btnX+btnW), uintptr(btnY+btnH), 18, 18)
-			selectObject.Call(hdc, oldBrush)
-			deleteObject.Call(blueBrush)
 
 			setTextColor.Call(hdc, 0x00FFFFFF)
-			txt, _ := syscall.UTF16PtrFromString("Take Control")
-			drawText.Call(hdc, uintptr(unsafe.Pointer(txt)), uintptr(len("Take Control")), uintptr(unsafe.Pointer(&btnRect)), DT_CENTER|DT_VCENTER|DT_SINGLELINE)
+			txt, _ := syscall.UTF16PtrFromString("Take control")
+			drawText.Call(hdc, uintptr(unsafe.Pointer(txt)), uintptr(len("Take control")), uintptr(unsafe.Pointer(&btnRect)), DT_CENTER|DT_VCENTER|DT_SINGLELINE)
 		}
 	} else if mode == "expanded" {
 		// Draw "Return to Agent" pill button pinned at bottom center

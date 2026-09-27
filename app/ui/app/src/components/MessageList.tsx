@@ -4,6 +4,7 @@ import Message from "./Message";
 import { ErrorMessage } from "./ErrorMessage";
 
 export default function MessageList({
+  chatId,
   messages,
   spacerHeight,
   isWaitingForLoad,
@@ -13,6 +14,7 @@ export default function MessageList({
   error,
   browserToolResult,
 }: {
+  chatId?: string;
   messages: MessageType[];
   spacerHeight: number;
   isWaitingForLoad?: boolean;
@@ -86,6 +88,7 @@ export default function MessageList({
         return (
           <div key={`${message.created_at}-${idx}`} data-message-index={idx}>
             <Message
+              chatId={chatId}
               message={message}
               onEditMessage={onEditMessage}
               messageIndex={idx}

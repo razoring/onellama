@@ -1,11 +1,13 @@
 package tools
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -30,6 +32,7 @@ type BrowserVMTool struct {
 	mu           sync.Mutex
 	qemuCmd      *exec.Cmd
 	qemuHWND     uintptr
+	qmp          *qmpClient
 	baseDir      string
 	qemuExe      string
 	kernelPath   string
@@ -88,6 +91,217 @@ func NewBrowserVMTool() *BrowserVMTool {
 	return globalBrowserVM
 }
 
+type qmpClient struct {
+	mu     sync.Mutex
+	conn   net.Conn
+	addr   string
+	paused bool
+}
+
+func newQMPClient(addr string) *qmpClient {
+	return &qmpClient{addr: addr}
+}
+
+func (q *qmpClient) connectLocked() error {
+	if q.conn != nil {
+		return nil
+	}
+	conn, err := net.DialTimeout("tcp", q.addr, 2*time.Second)
+	if err != nil {
+		return err
+	}
+	q.conn = conn
+
+	// Read greeting JSON from QEMU
+	reader := bufio.NewReader(conn)
+	_, err = reader.ReadString('\n')
+	if err != nil {
+		conn.Close()
+		q.conn = nil
+		return err
+	}
+
+	// Send QMP capabilities handshake
+	_, err = conn.Write([]byte("{\"execute\": \"qmp_capabilities\"}\n"))
+	if err != nil {
+		conn.Close()
+		q.conn = nil
+		return err
+	}
+
+	// Read capabilities response
+	_, err = reader.ReadString('\n')
+	if err != nil {
+		conn.Close()
+		q.conn = nil
+		return err
+	}
+
+	return nil
+}
+
+func (q *qmpClient) sendCommand(cmd string) error {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
+	if err := q.connectLocked(); err != nil {
+		return err
+	}
+
+	conn := q.conn
+	conn.SetDeadline(time.Now().Add(3 * time.Second))
+	_, err := conn.Write([]byte(cmd + "\n"))
+	if err != nil {
+		conn.Close()
+		q.conn = nil
+		return err
+	}
+
+	reader := bufio.NewReader(conn)
+	resp, err := reader.ReadString('\n')
+	if err != nil {
+		conn.Close()
+		q.conn = nil
+		return err
+	}
+
+	if strings.Contains(resp, `"error"`) {
+		return fmt.Errorf("qmp error: %s", resp)
+	}
+
+	return nil
+}
+
+func (q *qmpClient) Pause() error {
+	err := q.sendCommand(`{"execute": "stop"}`)
+	if err == nil {
+		q.paused = true
+	}
+	return err
+}
+
+func (q *qmpClient) Resume() error {
+	err := q.sendCommand(`{"execute": "cont"}`)
+	if err == nil {
+		q.paused = false
+	}
+	return err
+}
+
+func (q *qmpClient) IsPaused() bool {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	return q.paused
+}
+
+func (q *qmpClient) Close() {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if q.conn != nil {
+		q.conn.Close()
+		q.conn = nil
+	}
+}
+
+func demoteProcessPriority(cmd *exec.Cmd) {
+	if cmd == nil || cmd.Process == nil {
+		return
+	}
+	if runtime.GOOS == "windows" {
+		modkernel32 := syscall.NewLazyDLL("kernel32.dll")
+		procOpenProcess := modkernel32.NewProc("OpenProcess")
+		procSetPriorityClass := modkernel32.NewProc("SetPriorityClass")
+		procCloseHandle := modkernel32.NewProc("CloseHandle")
+
+		// PROCESS_SET_INFORMATION = 0x0200
+		handle, _, _ := procOpenProcess.Call(0x0200, 0, uintptr(cmd.Process.Pid))
+		if handle != 0 {
+			// BELOW_NORMAL_PRIORITY_CLASS = 0x00004000
+			_, _, _ = procSetPriorityClass.Call(handle, 0x00004000)
+			_, _, _ = procCloseHandle.Call(handle)
+		}
+	} else {
+		_ = exec.Command("renice", "10", fmt.Sprintf("%d", cmd.Process.Pid)).Run()
+	}
+}
+
+func (b *BrowserVMTool) buildQEMUArgs(tier int, qmpPort int) []string {
+	var args []string
+
+	// Optimized 2 vCPUs, 1024MB base RAM with ballooning
+	args = append(args, "-m", "1024M,maxmem=2048M", "-smp", "2,cores=2,threads=1,sockets=1")
+
+	// 1. Accelerator & CPU model based on Tier
+	switch tier {
+	case 1:
+		switch runtime.GOOS {
+		case "windows":
+			args = append(args, "-accel", "whpx,kernel-irqchip=off", "-accel", "tcg,thread=multi", "-cpu", "host")
+		case "linux":
+			args = append(args, "-accel", "kvm", "-accel", "tcg,thread=multi", "-cpu", "host")
+		case "darwin":
+			args = append(args, "-accel", "hvf", "-accel", "tcg,thread=multi", "-cpu", "host")
+		default:
+			args = append(args, "-accel", "tcg,thread=multi", "-cpu", "max")
+		}
+	default:
+		args = append(args, "-accel", "tcg,thread=multi", "-cpu", "max")
+	}
+
+	// 2. Display backend per OS
+	var displayArgs []string
+	switch runtime.GOOS {
+	case "darwin":
+		displayArgs = []string{"-display", "cocoa,show-cursor=on"}
+	case "linux":
+		displayArgs = []string{"-display", "gtk,zoom-to-fit=on,show-menubar=off,show-tabs=off,window-close=off,gl=on"}
+	default: // windows
+		displayArgs = []string{"-display", "gtk,zoom-to-fit=on,show-menubar=off,show-tabs=off,window-close=off,gl=off"}
+	}
+
+	// 3. Devices based on Tier
+	var deviceArgs []string
+	if tier == 1 {
+		deviceArgs = []string{
+			"-device", "virtio-gpu-pci,xres=1280,yres=800",
+			"-device", "virtio-tablet-pci",
+			"-device", "virtio-keyboard-pci",
+			"-device", "virtio-balloon-pci",
+		}
+	} else if tier == 2 {
+		deviceArgs = []string{
+			"-device", "virtio-vga",
+			"-device", "virtio-tablet-pci",
+			"-device", "virtio-keyboard-pci",
+			"-device", "virtio-balloon-pci",
+		}
+	} else {
+		deviceArgs = []string{
+			"-device", "virtio-vga",
+			"-usb",
+			"-device", "usb-tablet",
+		}
+	}
+
+	args = append(args,
+		"-kernel", b.kernelPath,
+		"-initrd", b.initrdPath,
+		"-append", "console=tty0 video=1280x800-32@60 root=/dev/vda rw rootwait quiet loglevel=1 drm.debug=0",
+		"-drive", fmt.Sprintf("file=%s,format=qcow2,if=virtio,cache=writeback,discard=unmap,aio=threads", b.imgPath),
+		"-netdev", "user,id=net0,hostfwd=tcp::9222-:9222",
+		"-device", "virtio-net-pci,netdev=net0",
+		"-qmp", fmt.Sprintf("tcp:127.0.0.1:%d,server,nowait", qmpPort),
+		"-parallel", "none",
+		"-serial", "none",
+		"-monitor", "none",
+		"-name", "OneLlama Browser VM",
+	)
+	args = append(args, deviceArgs...)
+	args = append(args, displayArgs...)
+
+	return args
+}
+
 func (b *BrowserVMTool) EnsureVMRunning() error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -96,11 +310,16 @@ func (b *BrowserVMTool) EnsureVMRunning() error {
 	resp, err := http.Get("http://127.0.0.1:9222/json/version")
 	if err == nil && resp.StatusCode == http.StatusOK {
 		resp.Body.Close()
+		if b.qmp != nil {
+			_ = b.qmp.Resume()
+		}
 		return nil
 	}
 
 	if b.qemuCmd != nil && b.qemuCmd.Process != nil {
-		// Process is already running, wait a bit for CDP
+		if b.qmp != nil {
+			_ = b.qmp.Resume()
+		}
 		return nil
 	}
 
@@ -108,70 +327,64 @@ func (b *BrowserVMTool) EnsureVMRunning() error {
 		return fmt.Errorf("qemu binary not found at %s", b.qemuExe)
 	}
 
-	var accelArgs []string
-	switch runtime.GOOS {
-	case "darwin":
-		accelArgs = []string{"-accel", "hvf", "-accel", "tcg"}
-	case "linux":
-		accelArgs = []string{"-accel", "kvm", "-accel", "tcg"}
-	default: // windows
-		accelArgs = []string{"-accel", "whpx", "-accel", "tcg"}
-	}
+	qmpPort := 4444
+	b.qmp = newQMPClient(fmt.Sprintf("127.0.0.1:%d", qmpPort))
 
-	args := append([]string{
-		"-m", "2048",
-		"-smp", "4",
-	}, accelArgs...)
+	tiers := []int{1, 2, 3}
+	var startedCmd *exec.Cmd
+	var lastErr error
 
-	var displayArgs []string
-	switch runtime.GOOS {
-	case "darwin":
-		displayArgs = []string{"-display", "cocoa"}
-	case "linux":
-		displayArgs = []string{"-display", "gtk,zoom-to-fit=on,show-menubar=off,show-tabs=off,window-close=off"}
-	default: // windows
-		displayArgs = []string{"-display", "gtk,zoom-to-fit=on,show-menubar=off,show-tabs=off,window-close=off,gl=off"}
-	}
-
-	args = append(args,
-		"-kernel", b.kernelPath,
-		"-initrd", b.initrdPath,
-		"-append", "console=tty0 video=1280x800-32@60 root=/dev/vda rw modules=loop,squashfs,ext4,virtio_pci,virtio_blk,virtio_net rootwait rootdelay=3 quiet",
-		"-drive", fmt.Sprintf("file=%s,format=qcow2,if=virtio", b.imgPath),
-		"-netdev", "user,id=net0,hostfwd=tcp::9222-:9222",
-		"-device", "virtio-net-pci,netdev=net0",
-		"-device", "virtio-vga",
-		"-usb",
-		"-device", "usb-tablet",
-		"-parallel", "none",
-		"-serial", "none",
-		"-monitor", "none",
-		"-name", "OneLlama Browser VM",
-	)
-	args = append(args, displayArgs...)
-
-	slog.Info("Starting bundled QEMU browser VM in background", "cmd", b.qemuExe)
-	cmd := exec.Command(b.qemuExe, args...)
-	cmd.Dir = filepath.Dir(b.qemuExe)
-	if runtime.GOOS == "windows" {
-		cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
-	}
-
-	if err := cmd.Start(); err != nil {
-		// Fallback to SDL if GTK failed
-		slog.Warn("Failed to start with primary display, falling back to SDL", "error", err)
-		args = args[:len(args)-len(displayArgs)]
-		args = append(args, "-display", "sdl,window-close=off")
-		cmd = exec.Command(b.qemuExe, args...)
+	for _, tier := range tiers {
+		args := b.buildQEMUArgs(tier, qmpPort)
+		slog.Info("Starting QEMU browser VM", "tier", tier, "cmd", b.qemuExe)
+		cmd := exec.Command(b.qemuExe, args...)
 		cmd.Dir = filepath.Dir(b.qemuExe)
 		if runtime.GOOS == "windows" {
 			cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
 		}
-		if errFallback := cmd.Start(); errFallback != nil {
-			return fmt.Errorf("failed to start QEMU: %w", errFallback)
+
+		if err := cmd.Start(); err == nil {
+			demoteProcessPriority(cmd)
+
+			exitChan := make(chan error, 1)
+			go func() {
+				exitChan <- cmd.Wait()
+			}()
+
+			select {
+			case err := <-exitChan:
+				slog.Warn("QEMU process exited early on tier", "tier", tier, "err", err)
+				lastErr = err
+				continue
+			case <-time.After(200 * time.Millisecond):
+				startedCmd = cmd
+				break
+			}
+		} else {
+			lastErr = err
+		}
+		if startedCmd != nil {
+			break
 		}
 	}
-	b.qemuCmd = cmd
+
+	if startedCmd == nil {
+		return fmt.Errorf("failed to start QEMU across all tiers: %v", lastErr)
+	}
+
+	b.qemuCmd = startedCmd
+
+	// Connect QMP after brief boot delay
+	go func() {
+		time.Sleep(500 * time.Millisecond)
+		for i := 0; i < 15; i++ {
+			if err := b.qmp.connectLocked(); err == nil {
+				slog.Info("QMP connected successfully to Browser VM")
+				break
+			}
+			time.Sleep(300 * time.Millisecond)
+		}
+	}()
 
 	// Start tab watchdog to monitor Chromium tabs and auto-hide when closed
 	go b.watchdogChromiumTabs()
@@ -195,8 +408,46 @@ func (b *BrowserVMTool) EnsureVMRunning() error {
 	return nil
 }
 
+func (b *BrowserVMTool) PauseVM() error {
+	b.mu.Lock()
+	qmp := b.qmp
+	b.mu.Unlock()
+
+	if qmp != nil {
+		return qmp.Pause()
+	}
+	return nil
+}
+
+func (b *BrowserVMTool) ResumeVM() error {
+	b.mu.Lock()
+	qmp := b.qmp
+	b.mu.Unlock()
+
+	if qmp != nil {
+		return qmp.Resume()
+	}
+	return nil
+}
+
+func PauseBrowserVM() error {
+	if globalBrowserVM != nil {
+		return globalBrowserVM.PauseVM()
+	}
+	return nil
+}
+
+func ResumeBrowserVM() error {
+	if globalBrowserVM != nil {
+		return globalBrowserVM.ResumeVM()
+	}
+	return nil
+}
+
 func (b *BrowserVMTool) watchdogChromiumTabs() {
 	var hadTabs bool
+	var vmBooted bool
+	var failCount int
 	for {
 		time.Sleep(500 * time.Millisecond)
 
@@ -210,8 +461,9 @@ func (b *BrowserVMTool) watchdogChromiumTabs() {
 
 		resp, err := http.Get("http://127.0.0.1:9222/json/list")
 		if err != nil {
-			if hadTabs {
-				slog.Info("Chromium exited/disconnected, killing QEMU to respawn later")
+			failCount++
+			if vmBooted && failCount >= 4 {
+				slog.Info("Chromium exited/disconnected for 4 consecutive checks, killing QEMU to respawn later")
 				realHWND := findQEMUHWND()
 				if realHWND != 0 {
 					hideWindow(realHWND)
@@ -225,9 +477,13 @@ func (b *BrowserVMTool) watchdogChromiumTabs() {
 				b.isControlled = false
 				b.mu.Unlock()
 				hadTabs = false
+				vmBooted = false
+				failCount = 0
 			}
 			continue
 		}
+		vmBooted = true
+		failCount = 0
 
 		var tabs []map[string]any
 		body, _ := io.ReadAll(resp.Body)
@@ -297,7 +553,7 @@ func evaluateInTab(ctx context.Context, wsURL string, expr string) (string, erro
 		return "", err
 	}
 
-	conn.SetReadDeadline(time.Now().Add(6 * time.Second))
+	conn.SetReadDeadline(time.Now().Add(25 * time.Second))
 	for {
 		var resp struct {
 			ID     int `json:"id"`
@@ -445,6 +701,29 @@ func hideWindow(hwnd uintptr) {
 	showWindow.Call(hwnd, 0) // SW_HIDE
 }
 
+func applyRoundedCorners(hwnd uintptr, width, height int) {
+	if runtime.GOOS != "windows" || hwnd == 0 {
+		return
+	}
+	dwmapi := syscall.NewLazyDLL("dwmapi.dll")
+	dwmSetWindowAttribute := dwmapi.NewProc("DwmSetWindowAttribute")
+	if dwmSetWindowAttribute.Find() == nil {
+		pref := uint32(2) // DWMWCP_ROUND = 2 (Native Windows 11 rounded corners)
+		dwmSetWindowAttribute.Call(hwnd, 33, uintptr(unsafe.Pointer(&pref)), 4)
+	}
+
+	if width > 0 && height > 0 {
+		gdi32 := syscall.NewLazyDLL("gdi32.dll")
+		user32 := syscall.NewLazyDLL("user32.dll")
+		createRoundRectRgn := gdi32.NewProc("CreateRoundRectRgn")
+		setWindowRgn := user32.NewProc("SetWindowRgn")
+		rgn, _, _ := createRoundRectRgn.Call(0, 0, uintptr(width+1), uintptr(height+1), 16, 16)
+		if rgn != 0 {
+			setWindowRgn.Call(hwnd, rgn, 1)
+		}
+	}
+}
+
 func makeFrameless(hwnd uintptr) {
 	if runtime.GOOS != "windows" || hwnd == 0 {
 		return
@@ -470,6 +749,7 @@ func makeFrameless(hwnd uintptr) {
 		}
 
 		setWindowPos.Call(hwnd, 0, 0, 0, 0, 0, 0x0001|0x0002|0x0004|0x0020) // SWP_NOSIZE | SWP_NOMOVE | SWP_NOZORDER | SWP_FRAMECHANGED
+		applyRoundedCorners(hwnd, 480, 300)
 	}
 }
 
@@ -663,11 +943,34 @@ func (b *BrowserVMTool) Schema() map[string]any {
 
 func (b *BrowserVMTool) Prompt() string {
 	return `Primary tool for web browsing, live searching, and site navigation.
-Use action 'navigate' with a target URL to open any website or search page.
+Use action 'navigate' with a target URL or search query to open any website or search engine.
+STRATEGY TIP: If looking for specific facts, stock prices, or answers, navigate directly to google.com or duckduckgo.com in the browser and search for it. If a specific site fails to load or errors out, immediately navigate to google.com to search instead of giving up.
 Each action returns marked interactive elements with IDs [#1], [#2], etc.
 - To click an element, use action 'click' with 'markId' (e.g. markId: 3) or 'text'.
-- To type into a search bar or text field, use action 'type' with 'markId' (e.g. markId: 1) and 'text' (e.g. 'RTX 3060 12GB').
+- To type into a search bar or text field, use action 'type' with 'markId' (e.g. markId: 1) and 'text' (e.g. 'AMD stock price 4pm today') and optional submit: true.
 - To scroll down, use action 'scroll'.`
+}
+
+func injectStealthAntiBot(ctx context.Context, wsURL string) {
+	if wsURL == "" {
+		return
+	}
+	uaParams := map[string]any{
+		"userAgent":      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+		"acceptLanguage": "en-US,en;q=0.9",
+		"platform":       "Win32",
+	}
+	_, _ = executeCDPCommand(ctx, wsURL, "Network.setUserAgentOverride", uaParams)
+
+	stealthScript := `(function() {
+		try {
+			Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
+			Object.defineProperty(navigator, 'languages', {get: () => ['en-US', 'en']});
+			Object.defineProperty(navigator, 'plugins', {get: () => [1, 2, 3, 4, 5]});
+			window.chrome = { runtime: {} };
+		} catch(e) {}
+	})()`
+	_, _ = evaluateInTab(ctx, wsURL, stealthScript)
 }
 
 func getActiveTab(ctx context.Context) (string, string, error) {
@@ -684,6 +987,7 @@ func getActiveTab(ctx context.Context) (string, string, error) {
 		if tType, _ := t["type"].(string); tType == "page" || tType == "" {
 			tabID, _ := t["id"].(string)
 			wsURL, _ := t["webSocketDebuggerUrl"].(string)
+			go injectStealthAntiBot(ctx, wsURL)
 			return tabID, wsURL, nil
 		}
 	}
@@ -701,6 +1005,7 @@ func getActiveTab(ctx context.Context) (string, string, error) {
 	_ = json.Unmarshal(body, &tabInfo)
 	wsURL, _ := tabInfo["webSocketDebuggerUrl"].(string)
 	tabID, _ := tabInfo["id"].(string)
+	go injectStealthAntiBot(ctx, wsURL)
 	return tabID, wsURL, nil
 }
 
@@ -862,6 +1167,7 @@ func (b *BrowserVMTool) Execute(ctx context.Context, args map[string]any) (any, 
 	durationRaw, _ := args["duration"].(float64)
 
 	_ = b.EnsureVMRunning()
+	_ = b.ResumeVM()
 
 	b.mu.Lock()
 	if targetURL != "" {

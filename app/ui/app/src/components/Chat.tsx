@@ -228,6 +228,7 @@ export default function Chat({ chatId }: { chatId: string }) {
             className={`flex-1 overflow-y-auto overscroll-contain relative min-h-0 select-none ${isWindows ? "xl:pt-4" : "xl:pt-8"}`}
           >
             <MessageList
+              chatId={chatId}
               messages={messages}
               spacerHeight={spacerHeight}
               isWaitingForLoad={isWaitingForLoad}

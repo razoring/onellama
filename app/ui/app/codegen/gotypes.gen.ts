@@ -118,6 +118,14 @@ export class Message {
     updated_at: Time;
     thinkingTimeStart?: Date | undefined;
     thinkingTimeEnd?: Date | undefined;
+    streamStartTime?: number;
+    firstTokenTime?: number;
+    lastTokenTime?: number;
+    tokenCount?: number;
+    promptEvalCount?: number;
+    promptEvalDurationMs?: number;
+    evalCount?: number;
+    evalDurationMs?: number;
 
     constructor(source: any = {}) {
         if ('string' === typeof source) source = JSON.parse(source);
@@ -135,6 +143,14 @@ export class Message {
         this.updated_at = this.convertValues(source["updated_at"], Time);
         this.thinkingTimeStart = source["thinkingTimeStart"] && new Date(source["thinkingTimeStart"]);
         this.thinkingTimeEnd = source["thinkingTimeEnd"] && new Date(source["thinkingTimeEnd"]);
+        this.streamStartTime = source["streamStartTime"];
+        this.firstTokenTime = source["firstTokenTime"];
+        this.lastTokenTime = source["lastTokenTime"];
+        this.tokenCount = source["tokenCount"];
+        this.promptEvalCount = source["promptEvalCount"];
+        this.promptEvalDurationMs = source["promptEvalDurationMs"];
+        this.evalCount = source["evalCount"];
+        this.evalDurationMs = source["evalDurationMs"];
     }
 
 	convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -338,6 +354,10 @@ export class ChatEvent {
     toolResultData?: any;
     chatId?: string;
     toolState?: any;
+    promptEvalCount?: number;
+    promptEvalDurationMs?: number;
+    evalCount?: number;
+    evalDurationMs?: number;
 
     constructor(source: any = {}) {
         if ('string' === typeof source) source = JSON.parse(source);
@@ -353,6 +373,10 @@ export class ChatEvent {
         this.toolResultData = source["toolResultData"];
         this.chatId = source["chatId"];
         this.toolState = source["toolState"];
+        this.promptEvalCount = source["promptEvalCount"];
+        this.promptEvalDurationMs = source["promptEvalDurationMs"];
+        this.evalCount = source["evalCount"];
+        this.evalDurationMs = source["evalDurationMs"];
     }
 
 	convertValues(a: any, classs: any, asMap: boolean = false): any {
