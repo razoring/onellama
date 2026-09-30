@@ -1,3 +1,0 @@
-FROM gemma4:31b-it
-DRAFT ./gemma-draft.gguf
-PARAMETER draft_num_predict 5
