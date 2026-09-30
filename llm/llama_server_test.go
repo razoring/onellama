@@ -2614,8 +2614,8 @@ func TestExternalDraftType(t *testing.T) {
 		want         string
 	}{
 		{architecture: "dflash", want: draftTypeDFlash},
-		{architecture: "qwen35", want: draftTypeMTP},
-		{architecture: "unknown", want: draftTypeMTP},
+		{architecture: "qwen35", want: draftTypeSimple},
+		{architecture: "unknown", want: draftTypeSimple},
 	}
 
 	for _, tt := range tests {

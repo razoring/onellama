@@ -799,6 +799,7 @@ func appendContextShiftArgs(params []string, opts api.Options, enabled bool) []s
 const (
 	draftTypeMTP    = "draft-mtp"
 	draftTypeDFlash = "draft-dflash"
+	draftTypeSimple = "draft-simple"
 )
 
 func appendDraftArgs(params []string, draftType, draftModelPath string, opts api.Options) []string {
@@ -828,7 +829,10 @@ func externalDraftType(path string) (string, error) {
 	if f.KV().Architecture() == "dflash" {
 		return draftTypeDFlash, nil
 	}
-	return draftTypeMTP, nil
+	if hasMTPDraft(f) {
+		return draftTypeMTP, nil
+	}
+	return draftTypeSimple, nil
 }
 
 func hasMTPDraft(f *gguf.Model) bool {
