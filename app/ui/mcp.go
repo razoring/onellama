@@ -14,7 +14,8 @@ import (
 )
 
 //mcpConfigFilename defines the default config file name
-const mcpConfigFilename = "claude_desktop_config.json"
+const mcpConfigFilename = "mcp_config.json"
+const claudeConfigFilename = "claude_desktop_config.json"
 
 //getMCPConfigPath returns the path to the Ollama MCP configuration file
 func getMCPConfigPath() (string, error) {
@@ -22,7 +23,17 @@ func getMCPConfigPath() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("user home directory not found: %w", err)
 	}
-	return filepath.Join(homeDir, ".ollama", mcpConfigFilename), nil
+	
+	mcpPath := filepath.Join(homeDir, ".ollama", mcpConfigFilename)
+	claudePath := filepath.Join(homeDir, ".ollama", claudeConfigFilename)
+
+	if _, err := os.Stat(mcpPath); err == nil {
+		return mcpPath, nil
+	}
+	if _, err := os.Stat(claudePath); err == nil {
+		return claudePath, nil
+	}
+	return mcpPath, nil
 }
 
 //loadMCPConfig reads raw JSON and tolerant-parses each MCP server entry independently

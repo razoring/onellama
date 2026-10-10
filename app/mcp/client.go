@@ -389,7 +389,13 @@ func (m *Manager) Sync() error {
 	if err != nil {
 		return err
 	}
-	cfgPath := filepath.Join(homeDir, ".ollama", "claude_desktop_config.json")
+	cfgPath := filepath.Join(homeDir, ".ollama", "mcp_config.json")
+	if _, err := os.Stat(cfgPath); os.IsNotExist(err) {
+		claudePath := filepath.Join(homeDir, ".ollama", "claude_desktop_config.json")
+		if _, err := os.Stat(claudePath); err == nil {
+			cfgPath = claudePath
+		}
+	}
 
 	b, err := os.ReadFile(cfgPath)
 	if err != nil {
