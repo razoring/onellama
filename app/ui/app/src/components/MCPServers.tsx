@@ -9,22 +9,12 @@ import {
   ClipboardDocumentIcon,
   ExclamationTriangleIcon,
   ArrowPathIcon,
-  PlusIcon,
   ChevronDownIcon,
   ChevronUpIcon,
   EyeIcon,
   EyeSlashIcon,
   CodeBracketIcon,
 } from "@heroicons/react/20/solid";
-
-const STDIO_TEMPLATE = `{
-  "command": "npx",
-  "args": ["-y", "@modelcontextprotocol/server-filesystem", "/path/to/dir"]
-}`;
-
-const SSE_TEMPLATE = `{
-  "url": "http://localhost:8000/sse"
-}`;
 
 export function MCPServers() {
   const [config, setConfig] = useState<MCPConfigResponse | null>(null);
@@ -131,21 +121,6 @@ export function MCPServers() {
     setTimeout(() => setCopiedPath(false), 2000);
   };
 
-  const handleAddTemplate = (type: "stdio" | "sse") => {
-    try {
-      const parsed = JSON.parse(rawInput || '{"mcpServers": {}}');
-      if (!parsed.mcpServers || typeof parsed.mcpServers !== "object") {
-        parsed.mcpServers = {};
-      }
-      const newName = type === "stdio" ? "filesystem-server" : "remote-sse-server";
-      parsed.mcpServers[newName] = JSON.parse(type === "stdio" ? STDIO_TEMPLATE : SSE_TEMPLATE);
-      const formatted = JSON.stringify(parsed, null, 2);
-      setRawInput(formatted);
-    } catch {
-      setError("Cannot add template while JSON has syntax errors.");
-    }
-  };
-
   const toggleEnvMask = (serverName: string) => {
     setShowEnvValues((prev) => ({ ...prev, [serverName]: !prev[serverName] }));
   };
@@ -171,24 +146,6 @@ export function MCPServers() {
           <Badge color="green">{validCount} Active</Badge>
           {disabledCount > 0 && <Badge color="zinc">{disabledCount} Disabled</Badge>}
           {brokenCount > 0 && <Badge color="red">{brokenCount} Broken</Badge>}
-          <span className="mx-2 text-neutral-300 dark:text-neutral-700">|</span>
-          <span className="text-xs text-neutral-500 dark:text-neutral-400">
-            Add template:
-          </span>
-          <button
-            type="button"
-            onClick={() => handleAddTemplate("stdio")}
-            className="flex items-center gap-1 rounded-md bg-neutral-100 px-2 py-1 text-xs font-medium text-neutral-700 hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700 cursor-pointer"
-          >
-            <PlusIcon className="h-3.5 w-3.5" /> stdio
-          </button>
-          <button
-            type="button"
-            onClick={() => handleAddTemplate("sse")}
-            className="flex items-center gap-1 rounded-md bg-neutral-100 px-2 py-1 text-xs font-medium text-neutral-700 hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700 cursor-pointer"
-          >
-            <PlusIcon className="h-3.5 w-3.5" /> sse
-          </button>
         </div>
 
         <div className="flex items-center gap-2">
@@ -233,7 +190,7 @@ export function MCPServers() {
                   No MCP servers configured
                 </p>
                 <p className="mt-1 max-w-sm text-xs text-neutral-500">
-                  Add server definitions using the raw JSON editor or click a template button above.
+                  Add server definitions using the raw JSON editor.
                 </p>
               </div>
             ) : (
@@ -242,6 +199,8 @@ export function MCPServers() {
                   const isExpanded = expandedServer === server.name;
                   const isBroken = server.status === "error";
                   const isDisabled = server.disabled;
+                  const totalTools = server.tools?.length || 0;
+                  const enabledTools = isDisabled ? 0 : (server.tools?.filter((tool) => !tool.disabled).length || 0);
 
                   return (
                     <div
@@ -253,12 +212,12 @@ export function MCPServers() {
                           <span className="truncate text-sm font-semibold text-neutral-900 dark:text-neutral-100">
                             {server.name}
                           </span>
-                          <Badge color="zinc">{server.type}</Badge>
                           {isBroken && <Badge color="red">Error</Badge>}
                         </div>
 
                         <div className="flex items-center gap-3">
                           <Switch
+                            color="green"
                             checked={!isDisabled}
                             onChange={(val) => handleToggleServer(server.name, val)}
                             disabled={isBroken}
@@ -280,18 +239,8 @@ export function MCPServers() {
                       </div>
 
                       {/* Brief sub-header */}
-                      <div className="mt-2 truncate font-mono text-xs text-neutral-500 dark:text-neutral-400">
-                        {server.command ? (
-                          <span>
-                            {server.command} {(server.args || []).join(" ")}
-                          </span>
-                        ) : server.url ? (
-                          <span>{server.url}</span>
-                        ) : (
-                          <span className="italic text-red-500">
-                            Malformed server entry
-                          </span>
-                        )}
+                      <div className="mt-2 truncate text-xs text-neutral-500 dark:text-neutral-400">
+                        <span>{enabledTools}/{totalTools} enabled</span>
                       </div>
 
                       {/* Broken servers fault */}
@@ -307,17 +256,6 @@ export function MCPServers() {
                       {/* Expanded details */}
                       {isExpanded && !isBroken && (
                         <div className="mt-4 flex flex-col gap-3 border-t border-neutral-100 pt-3 text-xs dark:border-neutral-800">
-                          {server.command && (
-                            <div>
-                              <span className="mb-1 block font-medium text-neutral-400">
-                                Command & Arguments:
-                              </span>
-                              <div className="overflow-x-auto rounded-lg bg-neutral-100 p-2 font-mono text-neutral-800 dark:bg-neutral-950 dark:text-neutral-200">
-                                {server.command} {(server.args || []).join(" ")}
-                              </div>
-                            </div>
-                          )}
-
                           {server.url && (
                             <div>
                               <span className="mb-1 block font-medium text-neutral-400">
@@ -368,12 +306,6 @@ export function MCPServers() {
 
                           {/* Tools Section */}
                           <div>
-                            <div className="mb-2 flex items-center justify-between">
-                              <span className="font-medium text-neutral-400">
-                                Tools ({server.tools?.length || 0}):
-                              </span>
-                            </div>
-
                             {!server.tools || server.tools.length === 0 ? (
                               <div className="rounded-lg bg-neutral-100 p-2.5 font-sans text-xs italic text-neutral-500 dark:bg-neutral-950 dark:text-neutral-400">
                                 {server.disabled
@@ -385,16 +317,13 @@ export function MCPServers() {
                                 {server.tools.map((tool) => (
                                   <div
                                     key={tool.name}
-                                    className="flex items-start justify-between gap-3 rounded-lg border border-neutral-100 bg-neutral-50 p-2.5 dark:border-neutral-800/80 dark:bg-neutral-950/70"
+                                    className="flex items-start justify-between gap-3"
                                   >
                                     <div className="min-w-0 flex-1">
                                       <div className="flex items-center gap-2">
-                                        <span className="font-mono text-xs font-semibold text-neutral-900 dark:text-neutral-100">
+                                        <span className="font-sans text-xs font-semibold text-neutral-900 dark:text-neutral-100">
                                           {tool.name}
                                         </span>
-                                        {tool.disabled && (
-                                          <Badge color="zinc">Disabled</Badge>
-                                        )}
                                       </div>
                                       {tool.description && (
                                         <p className="mt-1 font-sans text-xs leading-relaxed text-neutral-500 dark:text-neutral-400">
@@ -405,6 +334,7 @@ export function MCPServers() {
 
                                     <div className="shrink-0 pt-0.5">
                                       <Switch
+                                        color="green"
                                         checked={!tool.disabled}
                                         onChange={(val) =>
                                           handleToggleTool(server.name, tool.name, val)
