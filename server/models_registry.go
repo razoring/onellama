@@ -181,6 +181,56 @@ blockquote { color:#a3a3a3 !important; border-left-color:#333 !important; }
 .text-gray-400 { color:#9ca3af !important; }
 .text-white { color:#fff !important; }
 
+/* Redesign black opacity ramps & text contrast */
+[class*="text-black/60"], .text-black\/60,
+#searchresults p, #searchresults div, #searchresults span,
+.tabular-nums, [class*="tabular-nums"],
+[class*="text-black/40"], .text-black\/40 { color:#a3a3a3 !important; }
+[class*="text-black/20"], .text-black\/20 { color:#666666 !important; }
+[class*="text-black"]:not([class*="text-black/"]),
+#searchresults h2, #searchresults h2 span,
+h1, h2, h3, h4, h5, h6 { color:#f5f5f5 !important; }
+#searchresults a:hover h2, #searchresults a:hover h2 span { color:#ffffff !important; }
+
+/* Dividers & Borders */
+[class*="border-black"],
+[class*="border-black/"],
+[class*="border-black/["],
+.border-black\/\[0\.08\],
+.border-black\/\[0\.12\],
+.border-black\/30,
+#searchresults li,
+#searchresults p[data-result-count],
+p[data-result-count] { border-color:#333333 !important; }
+
+/* Placeholder & search input */
+[class*="placeholder:text-black"]::placeholder,
+input::placeholder { color:#808080 !important; }
+#form-input { color:#f5f5f5 !important; }
+label:has(#form-input) { border-color:#383838 !important; background-color:rgba(255,255,255,0.03) !important; }
+label:has(#form-input):focus-within { border-color:#6366f1 !important; }
+
+/* Filter buttons and badges */
+label[for="filters-toggle"] { border-color:#383838 !important; color:#e5e5e5 !important; }
+label[for="filters-toggle"]:hover { background-color:rgba(255,255,255,0.05) !important; }
+#filters-count { background-color:#4f46e5 !important; color:#ffffff !important; }
+#filters-done { background-color:#f5f5f5 !important; color:#171717 !important; }
+
+/* Form controls (radios & checkboxes) */
+input[type="radio"], input[type="checkbox"] {
+	background-color:#262626 !important;
+	border-color:#444444 !important;
+	color:#6366f1 !important;
+}
+input[type="radio"]:checked, input[type="checkbox"]:checked {
+	background-color:#4f46e5 !important;
+	border-color:#4f46e5 !important;
+}
+
+/* Tooltips & keyboard hints */
+[role="tooltip"] { background-color:#262626 !important; border:1px solid #404040 !important; color:#f5f5f5 !important; }
+kbd { background-color:#262626 !important; border-color:#383838 !important; color:#a3a3a3 !important; }
+
 /* Semantic accents — site blue/indigo/green kept but lightened for dark bg */
 .text-blue-600 { color:#93c5fd !important; }
 .text-indigo-600 { color:#c7d2fe !important; }
@@ -204,6 +254,11 @@ a.bg-neutral-800:hover, a.bg-neutral-800:focus, .focus\:bg-black { background-co
 [class*="bg-neutral-800"], a[class*="bg-neutral-800"] { background-color:rgba(255,255,255,0.08) !important; color:#f5f5f5 !important; border-color:#333 !important; }
 a[class*="bg-neutral-800"]:hover, a[class*="bg-neutral-800"]:focus { background-color:rgba(255,255,255,0.12) !important; }
 
+/* Installed chip dark theme */
+#ol-installed-chip { border-color:#383838 !important; color:#e5e5e5 !important; }
+#ol-installed-chip:hover { background-color:rgba(255,255,255,0.05) !important; }
+#ol-installed-chip.active { background-color:rgba(99,102,241,0.2) !important; color:#c7d2fe !important; border-color:rgba(99,102,241,0.4) !important; }
+
 /* Code / prose */
 pre, code, .prose-pre pre, .prose-code code, code\:bg-gray-200 { background-color:#1a1a1a !important; color:#d4d4d4 !important; }
 md-pre, md-code, md-bold, md-italic { color:#d4d4d4 !important; }
@@ -215,14 +270,15 @@ li::marker { color:#d4d4d4 !important; }
 /* Controls */
 input, select, textarea { background-color:#171717 !important; border-color:#333 !important; color:#e5e5e5 !important; }
 input[type="text"], input[type="search"] { background-color:transparent !important; }
-input::placeholder, textarea::placeholder { color:#6b7280 !important; }
+input::placeholder, textarea::placeholder { color:#808080 !important; }
 select:hover, option { background-color:#1c1c1c !important; color:#e5e5e5 !important; }
 .border-neutral-100, .border-neutral-200, .border-gray-100, .border-gray-200, .border-gray-300 { border-color:#333 !important; }
-				.divide-gray-100 > :not([hidden]) ~ :not([hidden]), .divide-gray-200 > :not([hidden]) ~ :not([hidden]), .divide-gray-300 > :not([hidden]) ~ :not([hidden]) { border-color:#333 !important; }
+.divide-gray-100 > :not([hidden]) ~ :not([hidden]), .divide-gray-200 > :not([hidden]) ~ :not([hidden]), .divide-gray-300 > :not([hidden]) ~ :not([hidden]) { border-color:#333 !important; }
 
 /* Scrollbar */
-::-webkit-scrollbar { width:10px; height:10px; }
-::-webkit-scrollbar-thumb { background:#333; border-radius:8px; }
+::-webkit-scrollbar { width:6px; height:6px; }
+::-webkit-scrollbar-thumb { background:#383838 !important; border-radius:4px; }
+::-webkit-scrollbar-track { background:transparent !important; }
 </style>`
 		} else {
 			themeCSS = `<style id="onellama-theme">
@@ -246,6 +302,120 @@ select:hover, option { background-color:#1c1c1c !important; color:#e5e5e5 !impor
 				.ol-installed-btn .ol-check-icon { display: block !important; }
 				.ol-installed-btn:hover .ol-trash-icon { display: block !important; }
 				.ol-installed-btn:hover .ol-check-icon { display: none !important; }
+
+				/* Hide header by default on search; show only on model detail pages */
+				header { display: none !important; height: 0 !important; min-height: 0 !important; margin: 0 !important; padding: 0 !important; border: 0 !important; }
+				body.ol-model header { display: flex !important; height: auto !important; }
+
+				/* Eliminate chin on search page */
+				body:not(.ol-model) [class*="md:top-20"] { top: 0 !important; }
+				body:not(.ol-model) main { padding-top: 0.75rem !important; }
+				body:not(.ol-model) div[class*="md:pt-10"] { padding-top: 0.5rem !important; }
+				body:not(.ol-model) div[class*="md:pb-6"] { padding-bottom: 0.5rem !important; }
+				body:not(.ol-model) label[class*="mt-8"] { margin-top: 0.75rem !important; }
+				body:not(.ol-model) #searchresults { margin-top: 0.5rem !important; }
+
+				/* Responsive search layout: side-by-side filters ONLY for maximized / large windows (>= 1100px) */
+				@media (max-width: 1099px) {
+					form[class*="md:grid"], .md\:grid {
+						display: flex !important;
+						flex-direction: column !important;
+					}
+					form > div[class*="col-start-2"] {
+						order: 1 !important;
+						width: 100%% !important;
+					}
+					form > div[class*="col-start-1"] {
+						order: 2 !important;
+						position: static !important;
+						max-height: none !important;
+						overflow: visible !important;
+						padding-top: 0 !important;
+						padding-bottom: 0 !important;
+						margin-top: 0.75rem !important;
+						width: 100%% !important;
+					}
+					#searchresults {
+						order: 3 !important;
+						margin-top: 0.75rem !important;
+						width: 100%% !important;
+					}
+					label[for="filters-toggle"] {
+						display: inline-flex !important;
+						align-items: center !important;
+						vertical-align: middle !important;
+						box-sizing: border-box !important;
+						height: 34px !important;
+						margin-top: 0 !important;
+						margin-bottom: 0 !important;
+					}
+					#filters-toggle ~ div {
+						display: none !important;
+					}
+					#filters-toggle:checked ~ div {
+						display: block !important;
+						margin-top: 1rem !important;
+					}
+					#filters-done {
+						display: block !important;
+					}
+					#ol-installed-chip {
+						vertical-align: middle !important;
+						box-sizing: border-box !important;
+						height: 34px !important;
+						margin-left: 0.5rem !important;
+						margin-top: 0 !important;
+						margin-bottom: 0 !important;
+					}
+				}
+
+				@media (min-width: 1100px) {
+					#ol-installed-chip {
+						margin-left: 0 !important;
+						margin-bottom: 1.25rem !important;
+					}
+					label[for="filters-toggle"] {
+						display: none !important;
+					}
+				}
+
+				/* Installed filter chip */
+				#ol-installed-chip {
+					display: inline-flex;
+					align-items: center;
+					vertical-align: middle;
+					box-sizing: border-box;
+					height: 34px;
+					gap: 0.375rem;
+					cursor: pointer;
+					user-select: none;
+					border-radius: 9999px;
+					border: 1px solid rgba(0, 0, 0, 0.12);
+					padding: 0.375rem 1rem;
+					font-size: 0.875rem;
+					font-weight: 500;
+					line-height: 1.25rem;
+					background: transparent;
+					color: inherit;
+					transition: all 0.15s ease-in-out;
+				}
+				#ol-installed-chip:hover {
+					background-color: rgba(0, 0, 0, 0.04);
+				}
+				#ol-installed-chip.active {
+					background-color: #eef2ff !important;
+					color: #4f46e5 !important;
+					border-color: #c7d2fe !important;
+				}
+				#ol-installed-chip .ol-installed-x {
+					display: inline-flex;
+					align-items: center;
+					justify-content: center;
+					margin-left: 0.25rem;
+					margin-right: -0.25rem;
+					border-radius: 9999px;
+					cursor: pointer;
+				}
 			</style>
 %[1]s
 			<script>
@@ -379,30 +549,61 @@ select:hover, option { background-color:#1c1c1c !important; color:#e5e5e5 !impor
 						return origReplaceState.apply(this, arguments);
 					};
 
-					// ---------- onellama: "Installed" sort option (client-side catalog view) ----------
+					// ---------- onellama: "Installed" filter chip (client-side catalog view) ----------
 					var installed = {
+						isActive: false,
 						term: '',
 						slugs: [],
+						names: {},
 						rendered: [],
-
-						sortSelects: function() {
-							return Array.prototype.slice.call(document.querySelectorAll('#desktop-sort-select, #mobile-sort-select'));
-						},
+						origList: null,
+						origCount: null,
 
 						enabled: function() {
-							var sels = this.sortSelects();
-							for (var i = 0; i < sels.length; i++) if (sels[i].value === 'installed') return true;
-							return false;
+							return !!this.isActive;
 						},
 
-						ensureOptions: function() {
-							var sels = this.sortSelects();
-							for (var i = 0; i < sels.length; i++) {
-								if (sels[i].querySelector('option[value="installed"]')) continue;
-								var opt = document.createElement('option');
-								opt.value = 'installed';
-								opt.textContent = 'Installed';
-								sels[i].appendChild(opt);
+						updateChipUI: function() {
+							var chip = document.getElementById('ol-installed-chip');
+							if (!chip) return;
+							if (this.isActive) {
+								chip.className = 'ol-installed-chip active';
+								chip.innerHTML = '<span>Installed</span><span class="ol-installed-x" title="Clear filter" role="button" aria-label="Clear filter"><svg class="h-3.5 w-3.5 pointer-events-none" viewBox="0 0 20 20" fill="currentColor"><path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z"/></svg></span>';
+							} else {
+								chip.className = 'ol-installed-chip';
+								chip.innerHTML = '<span>Installed</span>';
+							}
+						},
+
+						ensureChip: function() {
+							if (document.getElementById('ol-installed-chip')) {
+								this.updateChipUI();
+								return;
+							}
+							var filterBtn = document.querySelector('label[for="filters-toggle"]');
+							if (!filterBtn) return;
+
+							var chip = document.createElement('button');
+							chip.type = 'button';
+							chip.id = 'ol-installed-chip';
+							chip.className = 'ol-installed-chip';
+							chip.innerHTML = '<span>Installed</span>';
+
+							var self = this;
+							chip.addEventListener('click', function(e) {
+								e.preventDefault();
+								e.stopPropagation();
+								if (self.isActive) {
+									self.disable();
+								} else {
+									self.enable();
+								}
+							});
+
+							if (filterBtn.nextSibling) {
+								filterBtn.parentNode.insertBefore(chip, filterBtn.nextSibling);
+							} else {
+								filterBtn.parentNode.appendChild(chip);
 							}
 						},
 
@@ -428,34 +629,67 @@ select:hover, option { background-color:#1c1c1c !important; color:#e5e5e5 !impor
 								.catch(function() { self.slugs = []; self.names = {}; return []; });
 						},
 
-						liWrap: function(node) {
-							var li = document.createElement('li');
-							li.className = 'flex items-baseline border-b border-neutral-200 py-6';
-							li.setAttribute('data-ol-installed', '1');
-							li.appendChild(node);
-							return li;
-						},
-
 						fallbackLi: function(base) {
 							var li = document.createElement('li');
-							li.className = 'flex items-baseline border-b border-neutral-200 py-6';
+							li.className = 'border-b border-black/[0.08] dark:border-neutral-800';
 							li.setAttribute('data-ol-installed', '1');
 							var a = document.createElement('a');
 							a.href = '/local/library/' + encodeURIComponent(base);
-							a.className = 'group w-full';
+							a.className = 'group flex items-start justify-between gap-6 py-6';
 							var div = document.createElement('div');
-							div.className = 'flex flex-col w-full';
+							div.className = 'min-w-0 flex-1';
 							var h = document.createElement('h2');
-							h.className = 'truncate text-xl font-medium underline-offset-2 group-hover:underline md:text-2xl';
-							h.textContent = this.names[base] || base;
+							h.className = 'truncate text-xl font-medium leading-7 tracking-tight underline-offset-4 group-hover:underline';
+							var span = document.createElement('span');
+							span.textContent = this.names[base] || base;
+							h.appendChild(span);
 							var p = document.createElement('p');
-							p.className = 'text-sm text-neutral-500';
+							p.className = 'mt-1 max-w-2xl truncate text-sm leading-6 text-black/60 dark:text-neutral-400';
 							p.textContent = 'Available Locally. Not available in the ollama library.';
+							var badges = document.createElement('div');
+							badges.className = 'mt-3 flex flex-wrap items-center gap-2 text-[13px] leading-5 text-black/60';
+							var badge = document.createElement('span');
+							badge.className = 'inline-flex items-center rounded-md bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-600 sm:text-[13px]';
+							badge.textContent = 'installed';
+							badges.appendChild(badge);
 							div.appendChild(h);
 							div.appendChild(p);
+							div.appendChild(badges);
 							a.appendChild(div);
 							li.appendChild(a);
 							return li;
+						},
+
+						cards: function(root) {
+							return Array.prototype.slice.call((root || document).querySelectorAll('#searchresults li, #searchresults a[href*="/library/"]'));
+						},
+
+						normalize: function(name) {
+							if (!name) return '';
+							var s = String(name).trim().toLowerCase();
+							var i = s.lastIndexOf('/');
+							if (i !== -1) s = s.slice(i + 1);
+							i = s.indexOf(':');
+							if (i !== -1) s = s.slice(0, i);
+							return s;
+						},
+
+						matches: function(slug) {
+							if (!slug || !this.slugs.length) return false;
+							var s = String(slug).trim().toLowerCase();
+							var i = s.lastIndexOf('/');
+							var sBase = i !== -1 ? s.slice(i + 1) : s;
+							for (var j = 0; j < this.slugs.length; j++) {
+								var b = this.slugs[j];
+								if (b === s || b === sBase) return true;
+								if (b.indexOf(sBase) === 0 && b.charAt(sBase.length) === '-') return true;
+							}
+							return false;
+						},
+
+						searchValue: function() {
+							var el = document.querySelector('#form-input') || document.querySelector('input[name="q"]') || document.querySelector('#navbar-input');
+							return el ? (el.value || '') : '';
 						},
 
 						fetchCards: function() {
@@ -476,14 +710,28 @@ select:hover, option { background-color:#1c1c1c !important; color:#e5e5e5 !impor
 									var dom = new DOMParser().parseFromString(htmls[h], 'text/html');
 									var lis = self.cards(dom);
 									for (var i = 0; i < lis.length; i++) {
-										var href = lis[i].getAttribute('href') || '';
+										var item = lis[i];
+										var a = item.tagName === 'A' ? item : item.querySelector('a[href*="/library/"]');
+										if (!a) continue;
+										var href = a.getAttribute('href') || '';
 										var m = href.match(/\/library\/([^?#]+)/);
 										if (!m || !self.matches(m[1])) continue;
 										var b2 = self.normalize(m[1]);
 										if (b2) found[b2] = true;
 										if (seen[href]) continue;
 										seen[href] = true;
-										out.push(self.liWrap(lis[i].cloneNode(true)));
+										var nodeToPush;
+										if (item.tagName === 'LI') {
+											nodeToPush = item.cloneNode(true);
+											nodeToPush.setAttribute('data-ol-installed', '1');
+										} else {
+											var newLi = document.createElement('li');
+											newLi.className = 'border-b border-black/[0.08] dark:border-neutral-800';
+											newLi.setAttribute('data-ol-installed', '1');
+											newLi.appendChild(item.cloneNode(true));
+											nodeToPush = newLi;
+										}
+										out.push(nodeToPush);
 									}
 								}
 								for (var k = 0; k < slugs.length; k++) {
@@ -505,7 +753,7 @@ select:hover, option { background-color:#1c1c1c !important; color:#e5e5e5 !impor
 
 						removeHint: function() {
 							var h = document.getElementById('ol-installed-hint');
-							if (h) h.parentNode.removeChild(h);
+							if (h && h.parentNode) h.parentNode.removeChild(h);
 						},
 
 						clearRendered: function() {
@@ -515,14 +763,13 @@ select:hover, option { background-color:#1c1c1c !important; color:#e5e5e5 !impor
 
 						render: function() {
 							if (!this.enabled()) return;
-							this.clearRendered();
 							this.removeHint();
+							this.removeInstalledUl();
 							var results = document.getElementById('searchresults');
 							if (!results) return;
-							this.removeInstalledUl();
 							var ul = document.createElement('ul');
 							ul.id = 'ol-installed-list';
-							ul.className = 'grid grid-cols-1';
+							ul.setAttribute('role', 'list');
 							var term = this.term.toLowerCase().trim();
 							var visible = 0;
 							for (var i = 0; i < this.rendered.length; i++) {
@@ -534,6 +781,10 @@ select:hover, option { background-color:#1c1c1c !important; color:#e5e5e5 !impor
 								if (show) visible++;
 							}
 							results.appendChild(ul);
+							var countP = document.querySelector('#searchresults p[data-result-count]');
+							if (countP) {
+								countP.textContent = visible + (visible === 1 ? ' installed model' : ' installed models');
+							}
 							if (visible === 0) {
 								this.showHint(this.rendered.length === 0 ? 'No installed models.' : 'No installed models match "' + this.term.trim() + '".');
 							}
@@ -546,17 +797,18 @@ select:hover, option { background-color:#1c1c1c !important; color:#e5e5e5 !impor
 
 						enable: function() {
 							var self = this;
+							this.isActive = true;
+							this.updateChipUI();
 							var ul = document.querySelector('#searchresults ul');
 							if (ul) { this.origList = ul; ul.style.display = 'none'; }
-							this.clearRendered();
+							var countP = document.querySelector('#searchresults p[data-result-count]');
+							if (countP && this.origCount === null) {
+								this.origCount = countP.textContent;
+								countP.textContent = 'Loading installed models…';
+							}
 							this.removeHint();
 							this.term = this.searchValue();
-							var ing = document.createElement('div');
-							ing.id = 'ol-installed-hint';
-							ing.textContent = 'Loading installed models…';
-							ing.style.cssText = 'text-align:center;color:#6b7280;padding:48px 16px;font-size:14px;';
-							var results = document.getElementById('searchresults');
-							if (results) results.appendChild(ing);
+							this.showHint('Loading installed models…');
 
 							this.loadInstalled().then(function() {
 								return self.fetchCards();
@@ -570,39 +822,54 @@ select:hover, option { background-color:#1c1c1c !important; color:#e5e5e5 !impor
 						},
 
 						disable: function() {
+							this.isActive = false;
+							this.updateChipUI();
 							this.term = '';
 							this.rendered = [];
-							this.clearRendered();
 							this.removeInstalledUl();
 							this.removeHint();
 							if (this.origList) { this.origList.style.display = ''; this.origList = null; }
+							var countP = document.querySelector('#searchresults p[data-result-count]');
+							if (countP && this.origCount !== null) {
+								countP.textContent = this.origCount;
+								this.origCount = null;
+							}
 						}
 					};
 
-					document.addEventListener('change', function(e) {
-						var t = e.target;
-						if (!t || (t.id !== 'desktop-sort-select' && t.id !== 'mobile-sort-select')) return;
-						if (t.value === 'installed') installed.enable();
-						else installed.disable();
-					}, true);
-
 					document.addEventListener('input', function(e) {
 						var t = e.target;
-						if (!t || (t.id !== 'navbar-input' && t.id !== 'form-input')) return;
+						if (!t || (t.id !== 'navbar-input' && t.id !== 'form-input' && t.name !== 'q')) return;
 						if (installed.enabled()) { installed.term = t.value || ''; installed.render(); }
 					}, true);
 
 					document.addEventListener('keydown', function(e) {
 						if (!installed.enabled()) return;
 						var t = e.target;
-						if (t && (t.id === 'navbar-input' || t.id === 'form-input') && (e.key === 'Enter' || e.keyCode === 13)) {
+						if (t && (t.id === 'navbar-input' || t.id === 'form-input' || t.name === 'q') && (e.key === 'Enter' || e.keyCode === 13)) {
 							e.preventDefault();
 							e.stopPropagation();
 						}
 					}, true);
 
-					document.addEventListener('htmx:afterSwap', function() { installed.disable(); installed.ensureOptions(); applyModelHeader(); }, true);
-					document.addEventListener('DOMContentLoaded', function() { installed.ensureOptions(); applyModelHeader(); });
+					document.addEventListener('htmx:configRequest', function(evt) {
+						if (installed.enabled()) {
+							if (evt.detail && evt.detail.elt && (evt.detail.elt.name === 'c' || evt.detail.elt.name === 'o' || evt.detail.elt.name === 's')) {
+								installed.disable();
+							} else {
+								evt.preventDefault();
+								return;
+							}
+						}
+						var targetProxy = toProxyUrl(evt.detail.path);
+						if (targetProxy) {
+							evt.detail.path = targetProxy;
+						}
+					});
+
+					document.addEventListener('htmx:afterSwap', function() { installed.ensureChip(); applyModelHeader(); }, true);
+					document.addEventListener('DOMContentLoaded', function() { installed.ensureChip(); applyModelHeader(); });
+					if (document.readyState !== 'loading') { installed.ensureChip(); applyModelHeader(); }
 
 					installed.loadInstalled();
 

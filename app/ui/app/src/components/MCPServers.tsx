@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { getMCPConfig, saveMCPConfig } from "@/api";
+import { getMCPConfig, saveMCPConfig, toggleMCPTool } from "@/api";
 import { MCPConfigResponse, MCPServerItem } from "@/gotypes";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -103,6 +103,15 @@ export function MCPServers() {
       }
     } catch {
       setError("Cannot toggle server while JSON has syntax errors.");
+    }
+  };
+
+  const handleToggleTool = async (serverName: string, toolName: string, enabled: boolean) => {
+    try {
+      const updated = await toggleMCPTool(serverName, toolName, !enabled);
+      setConfig(updated);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to toggle tool");
     }
   };
 
@@ -356,6 +365,58 @@ export function MCPServers() {
                               </div>
                             </div>
                           )}
+
+                          {/* Tools Section */}
+                          <div>
+                            <div className="mb-2 flex items-center justify-between">
+                              <span className="font-medium text-neutral-400">
+                                Tools ({server.tools?.length || 0}):
+                              </span>
+                            </div>
+
+                            {!server.tools || server.tools.length === 0 ? (
+                              <div className="rounded-lg bg-neutral-100 p-2.5 font-sans text-xs italic text-neutral-500 dark:bg-neutral-950 dark:text-neutral-400">
+                                {server.disabled
+                                  ? "Server is disabled. Enable server to load tools."
+                                  : "No tools exposed by this server."}
+                              </div>
+                            ) : (
+                              <div className="flex flex-col gap-2">
+                                {server.tools.map((tool) => (
+                                  <div
+                                    key={tool.name}
+                                    className="flex items-start justify-between gap-3 rounded-lg border border-neutral-100 bg-neutral-50 p-2.5 dark:border-neutral-800/80 dark:bg-neutral-950/70"
+                                  >
+                                    <div className="min-w-0 flex-1">
+                                      <div className="flex items-center gap-2">
+                                        <span className="font-mono text-xs font-semibold text-neutral-900 dark:text-neutral-100">
+                                          {tool.name}
+                                        </span>
+                                        {tool.disabled && (
+                                          <Badge color="zinc">Disabled</Badge>
+                                        )}
+                                      </div>
+                                      {tool.description && (
+                                        <p className="mt-1 font-sans text-xs leading-relaxed text-neutral-500 dark:text-neutral-400">
+                                          {tool.description}
+                                        </p>
+                                      )}
+                                    </div>
+
+                                    <div className="shrink-0 pt-0.5">
+                                      <Switch
+                                        checked={!tool.disabled}
+                                        onChange={(val) =>
+                                          handleToggleTool(server.name, tool.name, val)
+                                        }
+                                        disabled={server.disabled}
+                                      />
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
                         </div>
                       )}
                     </div>

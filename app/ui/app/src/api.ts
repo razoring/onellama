@@ -639,6 +639,25 @@ export async function saveMCPConfig(raw: string): Promise<MCPConfigResponse> {
   return new MCPConfigResponse(data);
 }
 
+export async function toggleMCPTool(
+  server: string,
+  tool: string,
+  disabled: boolean
+): Promise<MCPConfigResponse> {
+  const response = await fetch(`${API_BASE}/api/v1/mcp/tool`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ server, tool, disabled }),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to toggle MCP tool: ${response.status}`);
+  }
+  const data = await response.json();
+  return new MCPConfigResponse(data);
+}
+
 // Memory API
 
 export interface Memory {

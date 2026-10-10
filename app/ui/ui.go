@@ -23,6 +23,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/ollama/ollama/api"
+	"github.com/ollama/ollama/app/mcp"
 	"github.com/ollama/ollama/app/server"
 	"github.com/ollama/ollama/app/store"
 	"github.com/ollama/ollama/app/tools"
@@ -299,6 +300,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/integrations", handle(s.getIntegrationStatuses))
 	mux.Handle("GET /api/v1/mcp", handle(s.getMCP))
 	mux.Handle("POST /api/v1/mcp", handle(s.saveMCP))
+	mux.Handle("POST /api/v1/mcp/tool", handle(s.toggleMCPTool))
 	mux.Handle("GET /api/v1/tools/pending", handle(s.getPendingToolPrompt))
 	mux.Handle("POST /api/v1/tools/respond", handle(s.respondToolPrompt))
 
@@ -2075,6 +2077,36 @@ func (s *Server) saveMCP(w http.ResponseWriter, r *http.Request) error {
 	cfg, err := saveMCPConfig(body.Raw)
 	if err != nil {
 		return fmt.Errorf("failed to save mcp config: %w", err)
+	}
+
+	if err := mcp.SyncManager(s.ToolRegistry); err != nil {
+		s.log().Warn("failed to sync mcp manager after config save", "error", err)
+	}
+
+	cfg, _ = loadMCPConfig()
+
+	w.Header().Set("Content-Type", "application/json")
+	return json.NewEncoder(w).Encode(cfg)
+}
+
+//toggleMCPTool handles enabling or disabling a single tool for an MCP server in local persistent storage
+func (s *Server) toggleMCPTool(w http.ResponseWriter, r *http.Request) error {
+	var body struct {
+		Server   string `json:"server"`
+		Tool     string `json:"tool"`
+		Disabled bool   `json:"disabled"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		return fmt.Errorf("invalid request body: %w", err)
+	}
+
+	if err := mcp.SetToolDisabled(body.Server, body.Tool, body.Disabled); err != nil {
+		return fmt.Errorf("failed to toggle mcp tool: %w", err)
+	}
+
+	cfg, err := loadMCPConfig()
+	if err != nil {
+		return fmt.Errorf("failed to reload mcp config: %w", err)
 	}
 
 	w.Header().Set("Content-Type", "application/json")

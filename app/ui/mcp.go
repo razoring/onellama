@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/ollama/ollama/app/mcp"
 	"github.com/ollama/ollama/app/ui/responses"
 )
 
@@ -74,6 +75,14 @@ func loadMCPConfig() (responses.MCPConfigResponse, error) {
 	//parse each mcp server independently to prevent one broken server from breaking others
 	for serverName, rawServer := range serversMap {
 		item := parseSingleMCPServer(serverName, rawServer)
+		serverTools := mcp.GetServerTools(serverName)
+		for _, t := range serverTools {
+			item.Tools = append(item.Tools, responses.MCPToolItem{
+				Name:        t.Name,
+				Description: t.Description,
+				Disabled:    t.Disabled,
+			})
+		}
 		res.Servers = append(res.Servers, item)
 	}
 

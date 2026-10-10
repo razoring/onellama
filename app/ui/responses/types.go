@@ -161,6 +161,12 @@ type Page struct {
 	FetchedAt time.Time      `json:"fetched_at"`
 }
 
+type MCPToolItem struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Disabled    bool   `json:"disabled"`
+}
+
 type MCPServerItem struct {
 	Name     string            `json:"name"`
 	Type     string            `json:"type"`
@@ -171,7 +177,7 @@ type MCPServerItem struct {
 	Disabled bool              `json:"disabled,omitempty"`
 	Status   string            `json:"status"`
 	Error    string            `json:"error,omitempty"`
-	Tools    []string          `json:"tools,omitempty"`
+	Tools    []MCPToolItem     `json:"tools,omitempty"`
 }
 
 type MCPConfigResponse struct {

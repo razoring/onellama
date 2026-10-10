@@ -648,6 +648,19 @@ export class BrowserStateData {
     }
 }
 
+export class MCPToolItem {
+    name: string;
+    description: string;
+    disabled: boolean;
+
+    constructor(source: any = {}) {
+        if ('string' === typeof source) source = JSON.parse(source);
+        this.name = source["name"];
+        this.description = source["description"];
+        this.disabled = source["disabled"];
+    }
+}
+
 export class MCPServerItem {
     name: string;
     type: string;
@@ -658,7 +671,7 @@ export class MCPServerItem {
     disabled?: boolean;
     status: string;
     error?: string;
-    tools?: string[];
+    tools?: MCPToolItem[];
 
     constructor(source: any = {}) {
         if ('string' === typeof source) source = JSON.parse(source);
@@ -671,7 +684,7 @@ export class MCPServerItem {
         this.disabled = source["disabled"];
         this.status = source["status"];
         this.error = source["error"];
-        this.tools = source["tools"];
+        this.tools = (source["tools"] || []).map((t: any) => new MCPToolItem(t));
     }
 }
 

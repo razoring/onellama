@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/ollama/ollama/app/mcp"
 )
 
 func TestMCPConfigIsolation(t *testing.T) {
@@ -72,5 +74,18 @@ func TestMCPSaveValidation(t *testing.T) {
 	var check map[string]json.RawMessage
 	if err := json.Unmarshal([]byte(invalidJSON), &check); err == nil {
 		t.Error("expected syntax error for invalid json, got nil")
+	}
+}
+
+func TestMCPToolDisableState(t *testing.T) {
+	err := mcp.SetToolDisabled("test-server", "tool-a", true)
+	if err != nil {
+		t.Fatalf("unexpected error setting tool disabled: %v", err)
+	}
+
+	// Toggle back
+	err = mcp.SetToolDisabled("test-server", "tool-a", false)
+	if err != nil {
+		t.Fatalf("unexpected error clearing tool disabled: %v", err)
 	}
 }

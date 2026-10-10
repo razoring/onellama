@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/ollama/ollama/api"
@@ -32,6 +33,7 @@ type Tool interface {
 
 // Registry manages the available tools and their execution
 type Registry struct {
+	mu         sync.RWMutex
 	tools      map[string]Tool
 	workingDir string // Working directory for all tool operations
 }
@@ -45,17 +47,30 @@ func NewRegistry() *Registry {
 
 // Register adds a tool to the registry
 func (r *Registry) Register(tool Tool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.tools[tool.Name()] = tool
+}
+
+// Unregister removes a tool from the registry
+func (r *Registry) Unregister(name string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	delete(r.tools, name)
 }
 
 // Get retrieves a tool by name
 func (r *Registry) Get(name string) (Tool, bool) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	tool, exists := r.tools[name]
 	return tool, exists
 }
 
 // List returns all available tools
 func (r *Registry) List() []Tool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	tools := make([]Tool, 0, len(r.tools))
 	for _, tool := range r.tools {
 		tools = append(tools, tool)
@@ -65,12 +80,16 @@ func (r *Registry) List() []Tool {
 
 // SetWorkingDir sets the working directory for all tool operations
 func (r *Registry) SetWorkingDir(dir string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.workingDir = dir
 }
 
 // Execute runs a tool with the given name and arguments
 func (r *Registry) Execute(ctx context.Context, name string, args map[string]any) (any, string, error) {
+	r.mu.RLock()
 	tool, ok := r.tools[name]
+	r.mu.RUnlock()
 	if !ok {
 		return nil, "", fmt.Errorf("unknown tool: %s", name)
 	}
@@ -104,6 +123,8 @@ type ToolResult struct {
 
 // ToolSchemas returns all tools as schema maps suitable for API calls
 func (r *Registry) AvailableTools() []map[string]any {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	schemas := make([]map[string]any, 0, len(r.tools))
 	for _, tool := range r.tools {
 		schema := map[string]any{
@@ -118,6 +139,8 @@ func (r *Registry) AvailableTools() []map[string]any {
 
 // ToolNames returns a list of all tool names
 func (r *Registry) ToolNames() []string {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	names := make([]string, 0, len(r.tools))
 	for name := range r.tools {
 		names = append(names, name)
@@ -127,6 +150,8 @@ func (r *Registry) ToolNames() []string {
 
 // SystemPrompt returns the agent system prompt guiding proactive tool usage and providing current time context.
 func (r *Registry) SystemPrompt() string {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	var sb strings.Builder
 	now := time.Now()
 
