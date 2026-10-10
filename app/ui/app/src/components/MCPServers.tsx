@@ -1,12 +1,10 @@
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { getMCPConfig, saveMCPConfig, toggleMCPTool } from "@/api";
 import { MCPConfigResponse, MCPServerItem } from "@/gotypes";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import {
-  CheckIcon,
-  ClipboardDocumentIcon,
   ExclamationTriangleIcon,
   ArrowPathIcon,
   ChevronDownIcon,
@@ -14,16 +12,13 @@ import {
   EyeIcon,
   EyeSlashIcon,
   CodeBracketIcon,
+  ArrowTopRightOnSquareIcon,
 } from "@heroicons/react/20/solid";
 
 export function MCPServers() {
   const [config, setConfig] = useState<MCPConfigResponse | null>(null);
-  const [rawInput, setRawInput] = useState<string>("");
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [isSaving, setIsSaving] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const [saveSuccess, setSaveSuccess] = useState<boolean>(false);
-  const [copiedPath, setCopiedPath] = useState<boolean>(false);
   const [expandedServer, setExpandedServer] = useState<string | null>(null);
   const [showEnvValues, setShowEnvValues] = useState<Record<string, boolean>>({});
 
@@ -33,7 +28,6 @@ export function MCPServers() {
     try {
       const res = await getMCPConfig();
       setConfig(res);
-      setRawInput(res.raw || "{\n  \"mcpServers\": {}\n}");
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to load MCP configuration");
     } finally {
@@ -45,41 +39,9 @@ export function MCPServers() {
     fetchConfig();
   }, [fetchConfig]);
 
-  const syntaxError = useMemo(() => {
-    if (!rawInput.trim()) return null;
-    try {
-      JSON.parse(rawInput);
-      return null;
-    } catch (e: unknown) {
-      return e instanceof Error ? e.message : "Invalid JSON syntax";
-    }
-  }, [rawInput]);
-
-  const isDirty = useMemo(() => {
-    return config ? rawInput !== config.raw : false;
-  }, [config, rawInput]);
-
-  const handleSave = async () => {
-    if (syntaxError) return;
-    setIsSaving(true);
-    setError(null);
-    setSaveSuccess(false);
-    try {
-      const updated = await saveMCPConfig(rawInput);
-      setConfig(updated);
-      setRawInput(updated.raw);
-      setSaveSuccess(true);
-      setTimeout(() => setSaveSuccess(false), 3000);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to save configuration");
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
   const handleToggleServer = async (serverName: string, enabled: boolean) => {
     try {
-      const parsed = JSON.parse(rawInput || '{"mcpServers": {}}');
+      const parsed = JSON.parse(config?.raw || '{"mcpServers": {}}');
       if (parsed.mcpServers && parsed.mcpServers[serverName]) {
         if (!enabled) {
           parsed.mcpServers[serverName].disabled = true;
@@ -87,12 +49,20 @@ export function MCPServers() {
           delete parsed.mcpServers[serverName].disabled;
         }
         const updatedRaw = JSON.stringify(parsed, null, 2);
-        setRawInput(updatedRaw);
         const updated = await saveMCPConfig(updatedRaw);
         setConfig(updated);
       }
     } catch {
-      setError("Cannot toggle server while JSON has syntax errors.");
+      setError("Cannot toggle server while the config file has syntax errors.");
+    }
+  };
+
+  const handleOpenConfigFile = async () => {
+    if (!config?.configPath) return;
+    try {
+      await window.openConfigFile?.(config.configPath);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to open configuration file");
     }
   };
 
@@ -103,22 +73,6 @@ export function MCPServers() {
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to toggle tool");
     }
-  };
-
-  const handleFormat = () => {
-    try {
-      const parsed = JSON.parse(rawInput);
-      setRawInput(JSON.stringify(parsed, null, 2));
-    } catch {
-      // syntax error
-    }
-  };
-
-  const handleCopyPath = () => {
-    if (!config?.configPath) return;
-    navigator.clipboard.writeText(config.configPath);
-    setCopiedPath(true);
-    setTimeout(() => setCopiedPath(false), 2000);
   };
 
   const toggleEnvMask = (serverName: string) => {
@@ -149,12 +103,6 @@ export function MCPServers() {
         </div>
 
         <div className="flex items-center gap-2">
-          <Button type="button" plain className="px-2.5 py-1 text-xs" onClick={handleFormat} disabled={!!syntaxError}>
-            Format JSON
-          </Button>
-          <Button type="button" plain className="px-2.5 py-1 text-xs" onClick={() => setRawInput(config?.raw || "")} disabled={!isDirty}>
-            Revert
-          </Button>
           <Button type="button" color="white" className="px-3" onClick={fetchConfig}>
             <ArrowPathIcon data-slot="icon" />
             Refresh
@@ -190,7 +138,7 @@ export function MCPServers() {
                   No MCP servers configured
                 </p>
                 <p className="mt-1 max-w-sm text-xs text-neutral-500">
-                  Add server definitions using the raw JSON editor.
+                  Add server definitions by opening the config file.
                 </p>
               </div>
             ) : (
@@ -357,70 +305,28 @@ export function MCPServers() {
           </div>
         </div>
 
-        {/* Right: raw JSON editor */}
+        {/* Right: config file */}
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
           <div className="mb-2.5 flex items-center justify-between gap-2">
             <span className="text-xs font-semibold text-neutral-500 dark:text-neutral-400">
-              Raw JSON Configuration
+              Config File
             </span>
             {config?.configPath && (
               <div className="flex items-center gap-2 rounded-lg bg-neutral-100 px-2.5 py-1 font-mono text-[11px] text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400">
                 <span className="truncate">File: {config.configPath}</span>
-                <button
-                  type="button"
-                  onClick={handleCopyPath}
-                  className="shrink-0 hover:text-neutral-900 dark:hover:text-neutral-100 cursor-pointer"
-                  title="Copy Path"
-                >
-                  {copiedPath ? (
-                    <CheckIcon className="h-3.5 w-3.5 text-green-500" />
-                  ) : (
-                    <ClipboardDocumentIcon className="h-3.5 w-3.5" />
-                  )}
-                </button>
               </div>
             )}
           </div>
 
-          {syntaxError && (
-            <div className="mb-3 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 font-mono text-xs text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
-              <ExclamationTriangleIcon className="mt-0.5 h-4 w-4 shrink-0 text-red-500" />
-              <div>Syntax Error: {syntaxError}</div>
-            </div>
-          )}
-
-          <div className="relative flex min-h-[350px] flex-1 flex-col">
-            <textarea
-              value={rawInput}
-              onChange={(e) => setRawInput(e.target.value)}
-              className="w-full flex-1 resize-y rounded-xl border border-neutral-200 bg-neutral-50 p-4 font-mono text-xs leading-relaxed text-neutral-900 shadow-xs focus:outline-2 outline-blue-500 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-100"
-              spellCheck={false}
-              rows={20}
-            />
-          </div>
-
-          <div className="mt-3 flex items-center justify-between">
-            <div className="text-xs text-neutral-500 dark:text-neutral-400">
-              {isDirty ? (
-                <span className="font-medium text-amber-500">Unsaved changes</span>
-              ) : saveSuccess ? (
-                <span className="flex items-center gap-1 font-medium text-green-500">
-                  <CheckIcon className="h-4 w-4" /> Configuration saved
-                </span>
-              ) : (
-                <span>All changes saved</span>
-              )}
-            </div>
-
-            <Button
-              type="button"
-              onClick={handleSave}
-              disabled={!isDirty || !!syntaxError || isSaving}
-              className="px-4 text-xs font-medium"
-            >
-              {isSaving ? "Saving..." : "Save Changes"}
-            </Button>
-          </div>
+          <Button
+            type="button"
+            onClick={handleOpenConfigFile}
+            disabled={!config?.configPath}
+            className="px-4 text-xs font-medium"
+          >
+            <ArrowTopRightOnSquareIcon data-slot="icon" />
+            Open Config File
+          </Button>
         </div>
       </div>
     </div>

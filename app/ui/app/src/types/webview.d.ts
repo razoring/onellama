@@ -139,6 +139,7 @@ declare global {
     ) => Promise<ClaudeDesktopActionResult>;
     prepareClaudeDesktopConnection?: () => Promise<ClaudeDesktopActionResult>;
     openClaudeDesktop?: () => Promise<string>;
+    openConfigFile?: (path: string) => Promise<void>;
     markCodexDesktopIntegrationUsed?: () => Promise<string>;
     getCodexDesktopStatus?: () => Promise<CodexDesktopStatus>;
     getCodexDesktopRequestCount?: () => Promise<number>;
