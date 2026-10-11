@@ -658,6 +658,15 @@ export async function toggleMCPTool(
   return new MCPConfigResponse(data);
 }
 
+export async function openMCPConfigFile(): Promise<void> {
+  const response = await fetch(`${API_BASE}/api/v1/mcp/open`, {
+    method: "POST",
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to open MCP config file: ${response.status}`);
+  }
+}
+
 // Memory API
 
 export interface Memory {

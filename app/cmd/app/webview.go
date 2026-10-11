@@ -23,6 +23,7 @@ import (
 	"github.com/ollama/ollama/app/dialog"
 	"github.com/ollama/ollama/app/store"
 	"github.com/ollama/ollama/app/webview"
+	"os/exec"
 )
 
 const (
@@ -224,6 +225,24 @@ func (w *Webview) Run(path string) unsafe.Pointer {
 
 		bindClaudeDesktop(wv)
 		bindCodexDesktop(wv)
+
+		wv.Bind("openConfigFile", func(targetPath string) {
+			if targetPath == "" {
+				return
+			}
+			go func() {
+				if runtime.GOOS == "windows" {
+					cmd := exec.Command("cmd", "/c", "start", "", targetPath)
+					_ = cmd.Start()
+				} else if runtime.GOOS == "darwin" {
+					cmd := exec.Command("open", targetPath)
+					_ = cmd.Start()
+				} else {
+					cmd := exec.Command("xdg-open", targetPath)
+					_ = cmd.Start()
+				}
+			}()
+		})
 
 		wv.Bind("close", func() {
 			hideWindow(wv.Window())

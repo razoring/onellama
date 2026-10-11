@@ -214,18 +214,18 @@ label:has(#form-input):focus-within { border-color:#6366f1 !important; }
 /* Filter buttons and badges */
 label[for="filters-toggle"] { border-color:#383838 !important; color:#e5e5e5 !important; }
 label[for="filters-toggle"]:hover { background-color:rgba(255,255,255,0.05) !important; }
-#filters-count { background-color:#4f46e5 !important; color:#ffffff !important; }
+#filters-count { background-color:#f5f5f5 !important; color:#171717 !important; }
 #filters-done { background-color:#f5f5f5 !important; color:#171717 !important; }
 
 /* Form controls (radios & checkboxes) */
 input[type="radio"], input[type="checkbox"] {
 	background-color:#262626 !important;
 	border-color:#444444 !important;
-	color:#6366f1 !important;
+	color:#f5f5f5 !important;
 }
 input[type="radio"]:checked, input[type="checkbox"]:checked {
-	background-color:#4f46e5 !important;
-	border-color:#4f46e5 !important;
+	background-color:#f5f5f5 !important;
+	border-color:#f5f5f5 !important;
 }
 
 /* Tooltips & keyboard hints */
@@ -308,16 +308,16 @@ select:hover, option { background-color:#1c1c1c !important; color:#e5e5e5 !impor
 				header { display: none !important; height: 0 !important; min-height: 0 !important; margin: 0 !important; padding: 0 !important; border: 0 !important; }
 				body.ol-model header { display: flex !important; height: auto !important; }
 
-				/* Eliminate chin on search page */
+				/* Eliminate chin on search page & add scrollbar breathing room */
 				body:not(.ol-model) [class*="md:top-20"] { top: 0 !important; }
-				body:not(.ol-model) main { padding-top: 0.75rem !important; }
+				body:not(.ol-model) main { padding-top: 0.75rem !important; padding-right: 1.25rem !important; }
 				body:not(.ol-model) div[class*="md:pt-10"] { padding-top: 0.5rem !important; }
 				body:not(.ol-model) div[class*="md:pb-6"] { padding-bottom: 0.5rem !important; }
 				body:not(.ol-model) label[class*="mt-8"] { margin-top: 0.75rem !important; }
-				body:not(.ol-model) #searchresults { margin-top: 0.5rem !important; }
+				body:not(.ol-model) #searchresults { margin-top: 0.5rem !important; padding-right: 0.5rem !important; }
 
-				/* Responsive search layout: side-by-side filters ONLY for maximized / large windows (>= 1100px) */
-				@media (max-width: 1099px) {
+				/* Responsive search layout: side-by-side filters ONLY for wide windows (>= 1350px) */
+				@media (max-width: 1349px) {
 					form[class*="md:grid"], .md\:grid {
 						display: flex !important;
 						flex-direction: column !important;
@@ -370,7 +370,7 @@ select:hover, option { background-color:#1c1c1c !important; color:#e5e5e5 !impor
 					}
 				}
 
-				@media (min-width: 1100px) {
+				@media (min-width: 1350px) {
 					#ol-installed-chip {
 						margin-left: 0 !important;
 						margin-bottom: 1.25rem !important;
@@ -378,6 +378,35 @@ select:hover, option { background-color:#1c1c1c !important; color:#e5e5e5 !impor
 					label[for="filters-toggle"] {
 						display: none !important;
 					}
+					form > div[class*="col-start-1"] {
+						padding-right: 1.5rem !important;
+						box-sizing: border-box !important;
+					}
+				}
+
+				/* Extra breathing room on the filter sidebar contents and counts */
+				form > div[class*="col-start-1"],
+				#filters-toggle ~ div,
+				form > div[class*="col-start-1"] > div {
+					box-sizing: border-box !important;
+					padding-right: 1.25rem !important;
+				}
+				form > div[class*="col-start-1"] label,
+				#filters-toggle ~ div label {
+					padding-right: 0.75rem !important;
+				}
+
+				/* Prevent right-side clipping in search results */
+				#searchresults, #searchresults * {
+					box-sizing: border-box !important;
+				}
+				#searchresults li, #searchresults a {
+					max-width: 100%% !important;
+					overflow-wrap: break-word !important;
+					word-break: break-word !important;
+				}
+				form[class*="md:grid"], .md\:grid {
+					gap: 1.5rem !important;
 				}
 
 				/* Installed filter chip */

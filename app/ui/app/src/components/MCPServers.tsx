@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { getMCPConfig, saveMCPConfig, toggleMCPTool } from "@/api";
+import { getMCPConfig, saveMCPConfig, toggleMCPTool, openMCPConfigFile } from "@/api";
 import { MCPConfigResponse, MCPServerItem } from "@/gotypes";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -58,9 +58,12 @@ export function MCPServers() {
   };
 
   const handleOpenConfigFile = async () => {
-    if (!config?.configPath) return;
     try {
-      await window.openConfigFile?.(config.configPath);
+      if (window.openConfigFile && config?.configPath) {
+        await window.openConfigFile(config.configPath);
+      } else {
+        await openMCPConfigFile();
+      }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to open configuration file");
     }
@@ -103,6 +106,16 @@ export function MCPServers() {
         </div>
 
         <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            color="white"
+            className="px-3"
+            onClick={handleOpenConfigFile}
+            disabled={!config?.configPath}
+          >
+            <ArrowTopRightOnSquareIcon data-slot="icon" />
+            Configure
+          </Button>
           <Button type="button" color="white" className="px-3" onClick={fetchConfig}>
             <ArrowPathIcon data-slot="icon" />
             Refresh
@@ -126,11 +139,9 @@ export function MCPServers() {
         </div>
       )}
 
-      {/* Two-pane body */}
-      <div className="flex min-h-0 flex-1 gap-6 overflow-hidden p-6">
-        {/* Left: server cards */}
-        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-          <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+      {/* Main body: server cards */}
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden p-6">
+        <div className="min-h-0 flex-1 overflow-y-auto pr-1">
             {config?.servers.length === 0 ? (
               <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-neutral-300 p-8 py-12 text-center dark:border-neutral-800">
                 <CodeBracketIcon className="mb-3 h-10 w-10 text-neutral-400" />
@@ -142,7 +153,7 @@ export function MCPServers() {
                 </p>
               </div>
             ) : (
-              <div className="flex flex-col gap-3">
+              <div className="grid grid-cols-[repeat(auto-fit,minmax(320px,1fr))] gap-3">
                 {config?.servers.map((server: MCPServerItem) => {
                   const isExpanded = expandedServer === server.name;
                   const isBroken = server.status === "error";
@@ -153,7 +164,7 @@ export function MCPServers() {
                   return (
                     <div
                       key={server.name}
-                      className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-4 shadow-xs"
+                      className="min-w-0 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-4 shadow-xs"
                     >
                       <div className="flex items-center justify-between gap-3">
                         <div className="flex min-w-0 items-center gap-2.5">
@@ -302,31 +313,6 @@ export function MCPServers() {
                 })}
               </div>
             )}
-          </div>
-        </div>
-
-        {/* Right: config file */}
-        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-          <div className="mb-2.5 flex items-center justify-between gap-2">
-            <span className="text-xs font-semibold text-neutral-500 dark:text-neutral-400">
-              Config File
-            </span>
-            {config?.configPath && (
-              <div className="flex items-center gap-2 rounded-lg bg-neutral-100 px-2.5 py-1 font-mono text-[11px] text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400">
-                <span className="truncate">File: {config.configPath}</span>
-              </div>
-            )}
-          </div>
-
-          <Button
-            type="button"
-            onClick={handleOpenConfigFile}
-            disabled={!config?.configPath}
-            className="px-4 text-xs font-medium"
-          >
-            <ArrowTopRightOnSquareIcon data-slot="icon" />
-            Open Config File
-          </Button>
         </div>
       </div>
     </div>

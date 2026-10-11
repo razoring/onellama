@@ -6,7 +6,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/ollama/ollama/app/mcp"
@@ -211,4 +213,30 @@ func saveMCPConfig(raw string) (responses.MCPConfigResponse, error) {
 	}
 
 	return loadMCPConfig()
+}
+
+// openMCPConfigFile launches the configuration file in a dedicated editor
+func openMCPConfigFile() error {
+	configPath, err := getMCPConfigPath()
+	if err != nil {
+		return err
+	}
+
+	// Ensure the file exists
+	if _, err := os.Stat(configPath); os.IsNotExist(err) {
+		if _, err := loadMCPConfig(); err != nil {
+			return err
+		}
+	}
+
+	if runtime.GOOS == "windows" {
+		cmd := exec.Command("cmd", "/c", "start", "", configPath)
+		return cmd.Start()
+	} else if runtime.GOOS == "darwin" {
+		cmd := exec.Command("open", configPath)
+		return cmd.Start()
+	} else {
+		cmd := exec.Command("xdg-open", configPath)
+		return cmd.Start()
+	}
 }

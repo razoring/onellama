@@ -301,6 +301,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/mcp", handle(s.getMCP))
 	mux.Handle("POST /api/v1/mcp", handle(s.saveMCP))
 	mux.Handle("POST /api/v1/mcp/tool", handle(s.toggleMCPTool))
+	mux.Handle("POST /api/v1/mcp/open", handle(s.openMCP))
 	mux.Handle("GET /api/v1/tools/pending", handle(s.getPendingToolPrompt))
 	mux.Handle("POST /api/v1/tools/respond", handle(s.respondToolPrompt))
 
@@ -2111,6 +2112,14 @@ func (s *Server) toggleMCPTool(w http.ResponseWriter, r *http.Request) error {
 
 	w.Header().Set("Content-Type", "application/json")
 	return json.NewEncoder(w).Encode(cfg)
+}
+
+func (s *Server) openMCP(w http.ResponseWriter, _ *http.Request) error {
+	if err := openMCPConfigFile(); err != nil {
+		return fmt.Errorf("failed to open mcp config file: %w", err)
+	}
+	w.Header().Set("Content-Type", "application/json")
+	return json.NewEncoder(w).Encode(map[string]bool{"success": true})
 }
 
 func (s *Server) getPendingToolPrompt(w http.ResponseWriter, _ *http.Request) error {
