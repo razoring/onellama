@@ -477,10 +477,12 @@ export class Settings {
 }
 export class SettingsResponse {
     settings: Settings;
+    default_system_prompt?: string;
 
     constructor(source: any = {}) {
         if ('string' === typeof source) source = JSON.parse(source);
         this.settings = this.convertValues(source["settings"], Settings);
+        this.default_system_prompt = source["default_system_prompt"];
     }
 
 	convertValues(a: any, classs: any, asMap: boolean = false): any {

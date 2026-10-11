@@ -356,8 +356,18 @@ export async function* sendMessage(
   }
 }
 
+export async function getDefaultSystemPrompt(): Promise<string> {
+  const response = await fetch(`${API_BASE}/api/v1/system-prompt/default`);
+  if (!response.ok) {
+    throw new Error("Failed to fetch default system prompt");
+  }
+  const data = await response.json();
+  return data.default_system_prompt || "";
+}
+
 export async function getSettings(): Promise<{
   settings: Settings;
+  default_system_prompt?: string;
 }> {
   const response = await fetch(`${API_BASE}/api/v1/settings`);
   if (!response.ok) {
@@ -366,6 +376,7 @@ export async function getSettings(): Promise<{
   const data = await response.json();
   return {
     settings: new Settings(data.settings),
+    default_system_prompt: data.default_system_prompt,
   };
 }
 

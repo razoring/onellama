@@ -33,3 +33,17 @@ func ensureCloudEnabledForTool(ctx context.Context, operation string) error {
 
 	return nil
 }
+
+// IsCloudDisabled returns true if Ollama Cloud is disabled on the connected server,
+// or if server status cannot be queried.
+func IsCloudDisabled(ctx context.Context) bool {
+	client, err := api.ClientFromEnvironment()
+	if err != nil {
+		return true
+	}
+	status, err := client.CloudStatusExperimental(ctx)
+	if err != nil {
+		return true
+	}
+	return status.Cloud.Disabled
+}

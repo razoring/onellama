@@ -302,6 +302,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /api/v1/mcp", handle(s.saveMCP))
 	mux.Handle("POST /api/v1/mcp/tool", handle(s.toggleMCPTool))
 	mux.Handle("POST /api/v1/mcp/open", handle(s.openMCP))
+	mux.Handle("GET /api/v1/system-prompt/default", handle(s.getDefaultSystemPrompt))
 	mux.Handle("GET /api/v1/tools/pending", handle(s.getPendingToolPrompt))
 	mux.Handle("POST /api/v1/tools/respond", handle(s.respondToolPrompt))
 
@@ -1027,18 +1028,21 @@ func (s *Server) chat(w http.ResponseWriter, r *http.Request) error {
 		hasToolsCapability := slices.Contains(details.Capabilities, model.CapabilityTools)
 
 		if WebSearchEnabled && hasToolsCapability {
-			if supportsBrowserTools(req.Model) {
-				browserState, ok := s.browserState(chat)
-				if !ok {
-					browserState = reconstructBrowserState(chat.Messages, tools.DefaultViewTokens)
+			cloudDisabled, _ := s.Store.CloudDisabled()
+			if !cloudDisabled && !tools.IsCloudDisabled(ctx) {
+				if supportsBrowserTools(req.Model) {
+					browserState, ok := s.browserState(chat)
+					if !ok {
+						browserState = reconstructBrowserState(chat.Messages, tools.DefaultViewTokens)
+					}
+					browser := tools.NewBrowser(browserState)
+					registry.Register(tools.NewBrowserSearch(browser))
+					registry.Register(tools.NewBrowserOpen(browser))
+					registry.Register(tools.NewBrowserFind(browser))
+				} else {
+					registry.Register(&tools.WebSearch{})
+					registry.Register(&tools.WebFetch{})
 				}
-				browser := tools.NewBrowser(browserState)
-				registry.Register(tools.NewBrowserSearch(browser))
-				registry.Register(tools.NewBrowserOpen(browser))
-				registry.Register(tools.NewBrowserFind(browser))
-			} else {
-				registry.Register(&tools.WebSearch{})
-				registry.Register(&tools.WebFetch{})
 			}
 		}
 	}
@@ -1094,10 +1098,20 @@ func (s *Server) chat(w http.ResponseWriter, r *http.Request) error {
 		settings, _ := s.Store.Settings()
 
 		var fullSystemPrompt string
-		if settings.SystemPrompt != "" {
+		if settings.SystemPrompt != "" && !isOutdatedDefaultPrompt(settings.SystemPrompt) {
 			fullSystemPrompt = settings.SystemPrompt
 		} else {
 			fullSystemPrompt = systemPrompt
+			if isOutdatedDefaultPrompt(settings.SystemPrompt) {
+				settings.SystemPrompt = systemPrompt
+				_ = s.Store.SetSettings(settings)
+			}
+		}
+
+		if !strings.Contains(strings.ToLower(fullSystemPrompt), "mcp server") {
+			if mcpPrompt := registry.MCPServersPrompt(); mcpPrompt != "" {
+				fullSystemPrompt += "\n\n" + mcpPrompt
+			}
 		}
 
 		if settings.MemoryEnabled {
@@ -1639,21 +1653,42 @@ func (s *Server) getSettings(w http.ResponseWriter, r *http.Request) error {
 	settings.Tools = s.Tools
 	settings.WorkingDir = s.WorkingDir
 
-	// Pre-fill system prompt if empty
-	if settings.SystemPrompt == "" {
+	// Default system prompt
+	defaultPrompt := ""
+	{
 		registry := tools.NewRegistry()
 		if s.ToolRegistry != nil {
 			for _, t := range s.ToolRegistry.List() {
 				registry.Register(t)
 			}
 		}
-		settings.SystemPrompt = registry.SystemPrompt()
+		defaultPrompt = registry.SystemPrompt()
+	}
+
+	// Pre-fill or migrate system prompt if empty or outdated default
+	if settings.SystemPrompt == "" || isOutdatedDefaultPrompt(settings.SystemPrompt) {
+		settings.SystemPrompt = defaultPrompt
+		_ = s.Store.SetSettings(settings)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	return json.NewEncoder(w).Encode(responses.SettingsResponse{
-		Settings: settings,
+		Settings:            settings,
+		DefaultSystemPrompt: defaultPrompt,
 	})
+}
+
+func isOutdatedDefaultPrompt(p string) bool {
+	trimmed := strings.TrimSpace(p)
+	if trimmed == "" {
+		return true
+	}
+	if strings.Contains(trimmed, "You are a proactive, highly autonomous AI assistant") {
+		if !strings.Contains(trimmed, "Autonomous Problem Solving") || !strings.Contains(trimmed, "Model Context Protocol (MCP) Servers") {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Server) settings(w http.ResponseWriter, r *http.Request) error {
@@ -2120,6 +2155,21 @@ func (s *Server) openMCP(w http.ResponseWriter, _ *http.Request) error {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	return json.NewEncoder(w).Encode(map[string]bool{"success": true})
+}
+
+func (s *Server) getDefaultSystemPrompt(w http.ResponseWriter, _ *http.Request) error {
+	registry := tools.NewRegistry()
+	if s.ToolRegistry != nil {
+		for _, t := range s.ToolRegistry.List() {
+			registry.Register(t)
+		}
+	}
+	defaultPrompt := registry.SystemPrompt()
+
+	w.Header().Set("Content-Type", "application/json")
+	return json.NewEncoder(w).Encode(map[string]string{
+		"default_system_prompt": defaultPrompt,
+	})
 }
 
 func (s *Server) getPendingToolPrompt(w http.ResponseWriter, _ *http.Request) error {

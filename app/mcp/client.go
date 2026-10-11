@@ -687,6 +687,13 @@ func SetToolDisabled(serverName, toolName string, disabled bool) error {
 	return GetManager().SetToolDisabled(serverName, toolName, disabled)
 }
 
+func (t *MCPTool) MCPServerName() string {
+	if t.client != nil {
+		return t.client.name
+	}
+	return ""
+}
+
 type RegistryMCPTool struct {
 	*MCPTool
 	registeredName string
@@ -694,4 +701,11 @@ type RegistryMCPTool struct {
 
 func (t *RegistryMCPTool) Name() string {
 	return t.registeredName
+}
+
+func (t *RegistryMCPTool) MCPServerName() string {
+	if t.MCPTool != nil && t.MCPTool.client != nil {
+		return t.MCPTool.client.name
+	}
+	return ""
 }

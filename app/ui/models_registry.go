@@ -283,7 +283,9 @@ select:hover, option { background-color:#1c1c1c !important; color:#e5e5e5 !impor
 </style>`
 		} else {
 			themeCSS = `<style id="onellama-theme">
-				html { color-scheme: light !important; background: #ffffff !important; }
+				<html { color-scheme: light !important; background: #ffffff !important; }
+				/* Filter radios: solid black when checked (remove the white center dot) */
+				[type="radio"][type]:checked, input[type="radio"]:checked { background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='%23000' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='3'/%3E%3C/svg%3E") !important; }
 			</style>`
 		}
 

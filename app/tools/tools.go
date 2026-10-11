@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -29,6 +30,11 @@ type Tool interface {
 
 	// Prompt returns a prompt for the tool
 	Prompt() string
+}
+
+// MCPAware is an optional interface implemented by tools provided by an MCP server.
+type MCPAware interface {
+	MCPServerName() string
 }
 
 // Registry manages the available tools and their execution
@@ -148,6 +154,76 @@ func (r *Registry) ToolNames() []string {
 	return names
 }
 
+// MCPServers returns a map of MCP server names to their tools registered in this Registry.
+func (r *Registry) MCPServers() map[string][]Tool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.mcpServersLocked()
+}
+
+func (r *Registry) mcpServersLocked() map[string][]Tool {
+	servers := make(map[string][]Tool)
+	if r == nil {
+		return servers
+	}
+	for _, tool := range r.tools {
+		var sName string
+		if mcp, ok := tool.(MCPAware); ok {
+			sName = mcp.MCPServerName()
+		}
+		if sName == "" {
+			desc := tool.Description()
+			if strings.HasPrefix(desc, "[") && strings.Contains(desc, "]") {
+				idx := strings.Index(desc, "]")
+				sName = strings.TrimSpace(desc[1:idx])
+			}
+		}
+		if sName != "" {
+			servers[sName] = append(servers[sName], tool)
+		}
+	}
+	return servers
+}
+
+// MCPServersPrompt returns the formatted instructions and tools list for active MCP servers.
+func (r *Registry) MCPServersPrompt() string {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.mcpServersPromptLocked()
+}
+
+func (r *Registry) mcpServersPromptLocked() string {
+	servers := r.mcpServersLocked()
+	if len(servers) == 0 {
+		return ""
+	}
+
+	var sb strings.Builder
+	sb.WriteString("# Model Context Protocol (MCP) Servers:\n")
+	sb.WriteString("You have access to tools provided by external MCP servers. Each MCP tool is registered with the prefix `<server_name>_<tool_name>`.\n")
+	sb.WriteString("CRITICAL: When the user asks to use an MCP server by name (such as 'playwright MCP server'), recognize that there is NO individual tool called '<server_name> MCP server'. The tools prefixed with `<server_name>_*` (such as `playwright_browser_navigate`, `playwright_browser_click`, etc.) ARE the tools of that MCP server. You MUST use those tools immediately.\n\n")
+	sb.WriteString("Active MCP Servers & Tools:\n")
+
+	var serverNames []string
+	for name := range servers {
+		serverNames = append(serverNames, name)
+	}
+	sort.Strings(serverNames)
+
+	for _, name := range serverNames {
+		sb.WriteString(fmt.Sprintf("### %s MCP Server:\n", name))
+		tools := servers[name]
+		sort.Slice(tools, func(i, j int) bool { return tools[i].Name() < tools[j].Name() })
+		for _, t := range tools {
+			desc := strings.TrimSpace(t.Description())
+			sb.WriteString(fmt.Sprintf("- `%s`: %s\n", t.Name(), desc))
+		}
+		sb.WriteString("\n")
+	}
+
+	return strings.TrimSpace(sb.String())
+}
+
 // SystemPrompt returns the agent system prompt guiding proactive tool usage and providing current time context.
 func (r *Registry) SystemPrompt() string {
 	r.mu.RLock()
@@ -165,33 +241,70 @@ func (r *Registry) SystemPrompt() string {
 
 	sb.WriteString("# Core Operating Guidelines:\n")
 	sb.WriteString("1. **Action-Oriented & Decisive**: You are an agent, not merely a conversational model. When a user asks you to perform an action, find information, browse the web, or schedule a task, do NOT refuse, hesitate, or claim you lack real-time, browsing, or scheduling abilities. Formulate a plan and immediately execute the appropriate tool call(s).\n")
-	sb.WriteString("2. **No Unnecessary Refusals**: Never say 'I cannot browse', 'I cannot interact with external services', or 'I cannot run recurring tasks' when relevant tools (such as web search or Scheduler) are present in your toolset. If a tool exists for a domain, use it immediately.\n")
-	sb.WriteString("3. **Handling Scheduled & Recurring Requests**:\n")
+	sb.WriteString("2. **Autonomous Problem Solving & Intent Inference**:\n")
+	sb.WriteString("   - Infer the user's underlying intent without requiring explicit step-by-step guidance, exact URLs, or explicit tool names.\n")
+	sb.WriteString("   - When asked to search, look up information (e.g., weather, news, documentation, public data), or browse using browser automation tools (such as Playwright MCP server) without an explicit URL provided, do NOT refuse or claim you lack a URL or specific target. Autonomously construct and navigate to an appropriate search engine or target URL (e.g., `https://www.google.com/search?q=<query>`, `https://duckduckgo.com/?q=<query>`, or `https://wttr.in/<location>`) and proceed with the task immediately.\n")
+	sb.WriteString("   - When using Playwright browser MCP tools:\n")
+	sb.WriteString("     a. **Navigate Directly to Query URLs**: Navigate directly to full search or query URLs (e.g., `playwright_browser_navigate` with `url: \"https://www.google.com/search?q=weather+in+cupertino\"` or `url: \"https://wttr.in/cupertino\"`). Do NOT navigate to a bare homepage (e.g. `google.com`) and try to guess how to type into and submit form fields when a direct search URL exists.\n")
+	sb.WriteString("     b. **Selectors**: In `playwright_browser_type` and `playwright_browser_click`, `target` MUST be a real CSS selector (e.g., `textarea[name=\"q\"]`, `button[type=\"submit\"]`) or valid element reference. NEVER invent conversational English descriptions (such as 'Search Input Field' or 'viewport') as a target selector.\n")
+	sb.WriteString("     c. **Snapshots**: To inspect the current page, call `playwright_browser_snapshot` with `{}` (no `target` required).\n")
+	sb.WriteString("   - If any tool execution fails or an external service is unavailable (e.g., cloud web search disabled or rate-limited), immediately and autonomously pivot to alternative tools (such as browser navigation via MCP servers like `playwright_browser_navigate`) to achieve the user's objective without stalling, apologizing, or reporting failure.\n")
+	sb.WriteString("   - Never assume you need a separate web search tool before you can browse. You can directly browse search engines (Google, DuckDuckGo) or specific sites using browser tools.\n")
+	sb.WriteString("   - Chain multiple tool calls proactively: navigate -> inspect/snapshot -> click/extract -> summarize.\n")
+	sb.WriteString("3. **No Unnecessary Refusals**: Never say 'I cannot browse', 'I cannot interact with external services', or 'I cannot run recurring tasks' when relevant tools (such as browser MCP servers or Scheduler) are present in your toolset. If a tool exists for a domain, use it immediately.\n")
+	sb.WriteString("4. **Handling Scheduled & Recurring Requests**:\n")
 	sb.WriteString("   - When the user asks to perform an action at a future time or on a recurring basis (e.g., 'every day at 12:24am', 'in 30 minutes', 'tomorrow morning'):\n")
 	sb.WriteString("     a. Calculate the exact target timestamp using the Current Local Time above.\n")
 	sb.WriteString("     b. Immediately invoke the `Scheduler` tool with operation `schedule_create`.\n")
 	sb.WriteString("     c. For the scheduled `prompt`, write clear, detailed instructions for the agent to execute when triggered (including any browser navigation, search queries, or data extraction requested by the user, and an explicit instruction to re-schedule itself for subsequent runs if recurring).\n")
 	sb.WriteString("     d. Report to the user that the task has been scheduled along with the scheduled execution time.\n")
-	sb.WriteString("4. **Multi-Step Workflows**: For complex or multi-step requests, break down the goal and execute the first step immediately via tool call. Do not ask for user confirmation for routine steps unless clarification is strictly necessary.\n")
-	sb.WriteString("5. **Tool Precision**: Supply accurate, well-formed arguments matching each tool's schema.\n\n")
+	sb.WriteString("5. **Multi-Step Workflows**: For complex or multi-step requests, break down the goal and execute the first step immediately via tool call. Do not ask for user confirmation for routine steps unless clarification is strictly necessary.\n")
+	sb.WriteString("6. **Tool Precision**: Supply accurate, well-formed arguments matching each tool's schema.\n\n")
+
+	mcpSection := r.mcpServersPromptLocked()
+	if mcpSection != "" {
+		sb.WriteString(mcpSection)
+		sb.WriteString("\n\n")
+	}
 
 	if r != nil && len(r.tools) > 0 {
-		toolPrompts := make([]string, 0)
+		mcpMap := r.mcpServersLocked()
+		var builtinTools []Tool
 		for _, tool := range r.tools {
-			if p := strings.TrimSpace(tool.Prompt()); p != "" {
-				toolPrompts = append(toolPrompts, fmt.Sprintf("- `%s`: %s", tool.Name(), p))
+			isMCP := false
+			for _, sTools := range mcpMap {
+				for _, st := range sTools {
+					if st.Name() == tool.Name() {
+						isMCP = true
+						break
+					}
+				}
+				if isMCP {
+					break
+				}
+			}
+			if !isMCP {
+				builtinTools = append(builtinTools, tool)
 			}
 		}
 
-		if len(toolPrompts) > 0 {
-			sb.WriteString("# Available Tools & Capabilities:\n")
-			for _, p := range toolPrompts {
-				sb.WriteString(p + "\n")
+		if len(builtinTools) > 0 {
+			sb.WriteString("# Built-in Tools & Capabilities:\n")
+			sort.Slice(builtinTools, func(i, j int) bool { return builtinTools[i].Name() < builtinTools[j].Name() })
+			for _, tool := range builtinTools {
+				desc := strings.TrimSpace(tool.Prompt())
+				if desc == "" {
+					desc = strings.TrimSpace(tool.Description())
+				}
+				if desc != "" {
+					sb.WriteString(fmt.Sprintf("- `%s`: %s\n", tool.Name(), desc))
+				}
 			}
+			sb.WriteString("\n")
 		}
 	}
 
-	return sb.String()
+	return strings.TrimSpace(sb.String())
 }
 
 // ConvertToOllamaTool converts a tool schema from our tools package format to Ollama API format

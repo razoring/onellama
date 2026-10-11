@@ -101,7 +101,8 @@ type ErrorEvent struct {
 }
 
 type SettingsResponse struct {
-	Settings store.Settings `json:"settings"`
+	Settings            store.Settings `json:"settings"`
+	DefaultSystemPrompt string         `json:"default_system_prompt,omitempty"`
 }
 
 type HealthResponse struct {

@@ -6,6 +6,7 @@ import {
   fetchMemories,
   updateMemory,
   deleteMemory,
+  getDefaultSystemPrompt,
 } from "@/api";
 import type { Settings } from "@/gotypes";
 import { Button } from "@/components/ui/button";
@@ -16,10 +17,12 @@ import { CheckIcon } from "@heroicons/react/20/solid";
 export default function SystemScreen() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [systemPrompt, setSystemPrompt] = useState("");
+  const [defaultSystemPrompt, setDefaultSystemPrompt] = useState("");
   const [memoryEnabled, setMemoryEnabled] = useState(false);
   const [memories, setMemories] = useState<Memory[]>([]);
   const [editingMemory, setEditingMemory] = useState<Memory | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
@@ -29,6 +32,9 @@ export default function SystemScreen() {
         const s = await getSettings();
         setSettings(s.settings);
         setSystemPrompt(s.settings.SystemPrompt || "");
+        if (s.default_system_prompt) {
+          setDefaultSystemPrompt(s.default_system_prompt);
+        }
         setMemoryEnabled(s.settings.MemoryEnabled !== false);
 
         const m = await fetchMemories();
@@ -58,6 +64,34 @@ export default function SystemScreen() {
       setSaveError("Failed to save settings");
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleResetSystemPrompt = async () => {
+    setIsResetting(true);
+    setSaveError(null);
+    setSaveSuccess(false);
+    try {
+      let promptToUse = defaultSystemPrompt;
+      if (!promptToUse) {
+        promptToUse = await getDefaultSystemPrompt();
+        setDefaultSystemPrompt(promptToUse);
+      }
+      setSystemPrompt(promptToUse);
+      if (settings) {
+        await updateSettings({
+          ...settings,
+          SystemPrompt: promptToUse,
+          MemoryEnabled: memoryEnabled,
+        } as any);
+        setSaveSuccess(true);
+        setTimeout(() => setSaveSuccess(false), 3000);
+      }
+    } catch (err) {
+      console.error("Failed to reset system prompt to default", err);
+      setSaveError("Failed to reset system prompt to default");
+    } finally {
+      setIsResetting(false);
     }
   };
 
@@ -93,11 +127,22 @@ export default function SystemScreen() {
       {/* Global Settings Block */}
       <div className="flex flex-col gap-5 border-b border-neutral-200 dark:border-neutral-800 pb-6">
         <div className="flex flex-col gap-1.5">
-          <label className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
-            Global System Prompt
-          </label>
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+              Global System Prompt
+            </label>
+            <Button
+              type="button"
+              outline
+              onClick={handleResetSystemPrompt}
+              disabled={isResetting || isSaving}
+              className="text-xs py-1 px-2.5 h-auto cursor-pointer"
+            >
+              {isResetting ? "Resetting..." : "Reset to default"}
+            </Button>
+          </div>
           <textarea
-            className="w-full h-28 p-3 rounded-xl border border-neutral-200 bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100 text-xs font-sans leading-relaxed shadow-xs focus:outline-2 outline-blue-500 resize-y"
+            className="w-full h-36 p-3 rounded-xl border border-neutral-200 bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100 text-xs font-sans leading-relaxed shadow-xs focus:outline-2 outline-blue-500 resize-y"
             placeholder="Enter instructions that will apply globally to all agent conversations..."
             value={systemPrompt}
             onChange={(e) => setSystemPrompt(e.target.value)}
