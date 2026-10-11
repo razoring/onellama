@@ -56,36 +56,50 @@ func resolvePath(name string) string {
 	if runtime.GOOS == "windows" && !strings.HasSuffix(name, ".exe") {
 		ext = ".exe"
 	}
+	target := name + ext
 
-	// look in the app bundle first
-	if exe, _ := os.Executable(); exe != "" {
-		var dir string
-		if runtime.GOOS == "windows" {
-			dir = filepath.Dir(exe)
-		} else {
-			dir = filepath.Join(filepath.Dir(exe), "..", "Resources")
+	// 1. Check user local programs / system install locations
+	var candidates []string
+	if runtime.GOOS == "windows" {
+		if localApp := os.Getenv("LOCALAPPDATA"); localApp != "" {
+			candidates = append(candidates, filepath.Join(localApp, "Programs", "Ollama", target))
 		}
-		if _, err := os.Stat(filepath.Join(dir, name+ext)); err == nil {
-			return filepath.Join(dir, name+ext)
+		if progFiles := os.Getenv("ProgramFiles"); progFiles != "" {
+			candidates = append(candidates, filepath.Join(progFiles, "Ollama", target))
+		}
+	} else if runtime.GOOS == "darwin" {
+		candidates = append(candidates,
+			"/Applications/Ollama.app/Contents/Resources/ollama",
+			"/usr/local/bin/ollama",
+			"/opt/homebrew/bin/ollama",
+		)
+	} else {
+		candidates = append(candidates,
+			"/usr/local/bin/ollama",
+			"/usr/bin/ollama",
+		)
+	}
+
+	for _, c := range candidates {
+		if _, err := os.Stat(c); err == nil {
+			return c
 		}
 	}
 
-	// check the development dist path
-	for _, path := range []string{
-		filepath.Join("dist", runtime.GOOS, name+ext),
-		filepath.Join("dist", runtime.GOOS+"-"+runtime.GOARCH, name+ext),
-	} {
-		if _, err := os.Stat(path); err == nil {
-			return path
-		}
-	}
-
-	// fallback to system path
+	// 2. Check system PATH
 	if p, _ := exec.LookPath(name); p != "" {
 		return p
 	}
 
-	return name
+	// 3. Fallback to app directory / adjacent binary
+	if exe, _ := os.Executable(); exe != "" {
+		dir := filepath.Dir(exe)
+		if _, err := os.Stat(filepath.Join(dir, target)); err == nil {
+			return filepath.Join(dir, target)
+		}
+	}
+
+	return target
 }
 
 func ollamaServeArgs(args []string) bool {
@@ -190,6 +204,11 @@ func (s *Server) Run(ctx context.Context) error {
 
 	if err := cleanup(); err != nil {
 		slog.Warn("failed to cleanup previous ollama process", "err", err)
+	}
+
+	// Proactively terminate any external ollama instances to ensure exclusive control
+	if err := reapServers(); err != nil {
+		slog.Warn("failed to reap external ollama instances", "err", err)
 	}
 
 	reaped := false

@@ -4,29 +4,22 @@ package updater
 
 import (
 	"context"
-	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"mime"
 	"net/http"
-	"net/url"
 	"os"
 	"path"
 	"path/filepath"
-	"runtime"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/ollama/ollama/app/store"
-	"github.com/ollama/ollama/app/version"
-	"github.com/ollama/ollama/auth"
 )
 
 var (
@@ -51,87 +44,9 @@ type UpdateResponse struct {
 }
 
 func (u *Updater) checkForUpdate(ctx context.Context) (bool, UpdateResponse) {
-	var updateResp UpdateResponse
-
-	requestURL, err := url.Parse(UpdateCheckURLBase)
-	if err != nil {
-		return false, updateResp
-	}
-
-	query := requestURL.Query()
-	query.Add("os", runtime.GOOS)
-	query.Add("arch", runtime.GOARCH)
-	currentVersion := version.Version
-	query.Add("version", currentVersion)
-	query.Add("ts", strconv.FormatInt(time.Now().Unix(), 10))
-
-	// The original macOS app used to use the device ID
-	// to check for updates so include it if present
-	if runtime.GOOS == "darwin" {
-		if id, err := u.Store.ID(); err == nil && id != "" {
-			query.Add("id", id)
-		}
-	}
-
-	var signature string
-
-	nonce, err := auth.NewNonce(rand.Reader, 16)
-	if err != nil {
-		// Don't sign if we haven't yet generated a key pair for the server
-		slog.Debug("unable to generate nonce for update check request", "error", err)
-	} else {
-		query.Add("nonce", nonce)
-		requestURL.RawQuery = query.Encode()
-
-		data := []byte(fmt.Sprintf("%s,%s", http.MethodGet, requestURL.RequestURI()))
-		signature, err = auth.Sign(ctx, data)
-		if err != nil {
-			slog.Debug("unable to generate signature for update check request", "error", err)
-		}
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL.String(), nil)
-	if err != nil {
-		slog.Warn(fmt.Sprintf("failed to check for update: %s", err))
-		return false, updateResp
-	}
-	if signature != "" {
-		req.Header.Set("Authorization", signature)
-	}
-	ua := fmt.Sprintf("ollama/%s %s Go/%s %s", version.Version, runtime.GOARCH, runtime.Version(), UserAgentOS)
-	req.Header.Set("User-Agent", ua)
-
-	slog.Debug("checking for available update", "requestURL", requestURL, "User-Agent", ua)
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		slog.Warn(fmt.Sprintf("failed to check for update: %s", err))
-		return false, updateResp
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode == http.StatusNoContent {
-		slog.Debug("check update response 204 (current version is up to date)")
-		return false, updateResp
-	}
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		slog.Warn(fmt.Sprintf("failed to read body response: %s", err))
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		slog.Info(fmt.Sprintf("check update error %d - %.96s", resp.StatusCode, string(body)))
-		return false, updateResp
-	}
-	err = json.Unmarshal(body, &updateResp)
-	if err != nil {
-		slog.Warn(fmt.Sprintf("malformed response checking for update: %s", err))
-		return false, updateResp
-	}
-	// Extract the version string from the URL in the github release artifact path
-	updateResp.UpdateVersion = path.Base(path.Dir(updateResp.UpdateURL))
-
-	slog.Info("New update available at " + updateResp.UpdateURL)
-	return true, updateResp
+	// OneLlama runs as a companion on top of host Ollama.
+	// Self-updating is disabled to avoid downloading OllamaSetup.exe and overwriting OneLlama.
+	return false, UpdateResponse{}
 }
 
 func (u *Updater) DownloadNewRelease(ctx context.Context, updateResp UpdateResponse) error {
